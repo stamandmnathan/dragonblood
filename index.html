@@ -780,7 +780,7 @@ function buildEggMission(cfg){
       const a=Math.random()*Math.PI*2;portal=makePortal(0xc9a35a);portal.position.set(Math.sin(a)*38,0,Math.cos(a)*38);portal.lookAt(0,0,0);sc.add(portal);
       spawnLeft=wildCount;spawnT=.5;toast(`Egg extracted. ${wildCount} wild dragons smell it.`,'good');
       checkpoint={x:0,z:7};
-      obj('Carry the egg to the golden exit portal. Strike wild dragons to drive them off.');
+      obj('Carry the egg to the golden exit portal. Strike wild dragons to drive them off. They can only take the egg by killing you.');
     }else end(false,`The egg cracked during extraction (${pct(c)} chance). Better tools and a higher rider level raise the odds.`);}
   function spawnWild(){const a=Math.random()*Math.PI*2;const m=makeDragon(new THREE.Color(E.color).lerp(new THREE.Color(0x777777),.45).getHex(),.85);
     m.position.set(Math.sin(a)*44,14,Math.cos(a)*44);sc.add(m);wild.push({m,stun:0,kb:new THREE.Vector3(),ph:Math.random()*6,speed:(8.5+ri*.6)*(1+.04*(cfg.lvl-1))});}
@@ -796,7 +796,8 @@ function buildEggMission(cfg){
       if(phase==='escape')for(const w of wild)if(w.m.position.y<5.5&&w.stun<=0)t.push({x:w.m.position.x,z:w.m.position.z,r:1.6,hit:()=>{w.stun=1.4;w.kb.set(w.m.position.x-SQ.m.position.x,0,w.m.position.z-SQ.m.position.z).normalize().multiplyScalar(12);w.m.userData.flash=.15;}});
       return t;},
     dynCollide(){if(phase!=='fight'||boss.position.y>scale*2.2)return;const dx=P.x-boss.position.x,dz=P.z-boss.position.z,d=Math.hypot(dx,dz),m=scale*1.15;if(d<m&&d>1e-4){P.x=boss.position.x+dx/d*m;P.z=boss.position.z+dz/d*m;}},
-    onDeath(){deaths++;P.hp=maxHp();P.x=checkpoint.x;P.z=checkpoint.z;P.yaw=0;P.pitch=0;hurtA=.9;
+    onDeath(){if(phase==='escape'){eggVM.visible=false;end(false,'A wild dragon killed you and took the egg.');return;}
+      deaths++;P.hp=maxHp();P.x=checkpoint.x;P.z=checkpoint.z;P.yaw=0;P.pitch=0;hurtA=.9;
       for(const p of proj)sc.remove(p.m);proj.length=0;
       for(const w of wild){w.stun=3;w.kb.set(w.m.position.x-P.x,0,w.m.position.z-P.z).normalize().multiplyScalar(18);}
       toast(`You fell and respawned at the checkpoint. Deaths: ${deaths}.`,'bad');},
@@ -852,7 +853,9 @@ function buildEggMission(cfg){
           const dx=P.x-w.m.position.x,dz=P.z-w.m.position.z,d=Math.hypot(dx,dz)||1e-3;
           w.m.position.x+=dx/d*w.speed*dt;w.m.position.z+=dz/d*w.speed*dt;
           const ty=d>9?7:1.4;w.m.position.y+=(ty-w.m.position.y)*Math.min(1,dt*2.2);w.m.lookAt(P.x,w.m.position.y,P.z);
-          if(d<2.3&&w.m.position.y<3){eggVM.visible=false;end(false,'A wild dragon snatched the egg out of your arms.');return;}}
+          w.biteCD=Math.max(0,(w.biteCD||0)-dt);
+          if(d<2.3&&w.m.position.y<3&&w.biteCD<=0){w.biteCD=1.2;hurt(10*dmgMul);toast('A wild dragon tears at you. If it kills you, it takes the egg.','bad');
+            if(missionOver)return;w.stun=.7;w.kb.set(w.m.position.x-P.x,0,w.m.position.z-P.z).normalize().multiplyScalar(8);}}
         if(portal){portal.userData.disc.material.opacity=.45+Math.sin(t*3)*.15;if(Math.hypot(P.x-portal.position.x,P.z-portal.position.z)<2.8)end(true);}}
       if(eggMesh)eggMesh.rotation.y+=dt;}
   };
@@ -1587,7 +1590,7 @@ function openLoadout(kind){LO.kind=kind;LO.tab='knight';if(LO.scroll&&!scrollByU
 function briefing(){const k=LO.kind;
   if(k==='egg'){const lvl=1+Math.floor((S.playerLvl-1)/2)+(MP.high?3:0);return{name:`${MP.high?'High-level egg hunt':'Egg hunt'}${MP.party>1?` · party of ${MP.party}`:''}`,
     goal:'Bring down a mother dragon on foot with weapons, extract her egg from the nest, and escape with it.',
-    rules:[`On foot · ${MP.high?20:15} minute limit`,'Falling respawns you at the last checkpoint','Running out of time fails the hunt',`Egg level ${lvl}${MP.high?' · costs 1 holy water':''}`],
+    rules:[`On foot · ${MP.high?20:15} minute limit`,'Falling respawns you at the last checkpoint, except while carrying the egg: a wild dragon that kills you takes it','Running out of time fails the hunt',`Egg level ${lvl}${MP.high?' · costs 1 holy water':''}`],
     reward:`Gold, material, XP and the egg. Wins have a ${MP.high?3:1}% chance of a Legendary scroll.`};}
   if(k==='feed'){const E=ELEMENTS[MP.el];return{name:`${E.name} Dragon Feed`,goal:`Gather ${E.food} for your ${E.name} dragons and return to the gate before time runs out. Critters will defend the grounds.`,
     rules:['On foot · 90 second run','Falling ends the run and loses what you gathered',S.lures?'A hunting lure will be used':'No hunting lure'],reward:`${E.food}, gold, material and XP. Wins have a 1% chance of a Legendary scroll.`};}
@@ -1856,7 +1859,7 @@ const P_gate={eyebrow:()=>'Mission board',title:()=>'Mission Gate',render(){
   ${grownAny?'':'<p class="note" style="color:var(--ember)">Needs at least one fully raised dragon.</p>'}
   ${btn('startPatrol',null,'Start Sky Patrol',!grownAny||!!block,'primary')}
   <p class="section-h" style="margin-top:22px">Egg hunt</p><p class="note">Kill a mother dragon on foot with weapons only. Her rarity and element are random. Difficulty scales with party size. Only the player who starts the hunt gets the egg.</p>
-  <p class="note">On-foot mission: <b>15 minute limit</b> (20 for a high-level hunt). Running out of time fails the hunt. If you fall, you respawn at the last checkpoint.</p>
+  <p class="note">On-foot mission: <b>15 minute limit</b> (20 for a high-level hunt). Running out of time fails the hunt. If you fall, you respawn at the last checkpoint. Once you hold the egg, wild dragons attack you, and if they kill you they take the egg.</p>
   <p class="note">Party</p><div class="seg">${[1,2,3].map(n=>`<button type="button" data-act="party" data-arg="${n}" aria-pressed="${MP.party===n}">${n===1?'Solo':n+' players'}</button>`).join('')}</div>
   <p class="note">Allies are AI riders in this prototype. Each extra player adds 55% to the mother's health and 25% to her damage.</p>
   <div class="grid2"><button type="button" class="pick" data-act="hunt" data-arg="std" aria-pressed="${!MP.high}"><b>Standard hunt</b><span>Egg level ${1+Math.floor((S.playerLvl-1)/2)}</span></button>
