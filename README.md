@@ -16,6 +16,22 @@ Open `index.html` in a modern browser. The first load needs an internet connecti
 | `css/styles.css` | Game styles |
 | `js/game.js` | Game logic (three.js) |
 
+## Tutorial
+
+A new village starts with a tutorial. You can skip it from the Menu.
+
+1. **On foot:** move, sprint, fight weak nest guards and drink a salve. Then sneak into a sleeping mother dragon's nest and take one of four eggs: Lightning, Poison, Fire or Ice. Escape through the portal while she spits fire at you.
+2. **Riding:** the egg is now a fully grown dragon. Step by step you go through every key: mount, take off, speed, steer, climb and descend, dive, breath, bite, unseating riders, breaking free when a rider snatches you, parachuting, grabbing and delivering a crate, landing, dismounting, blocking and striking soldiers, Dragon Power, sending your dragon away and calling it back, and the kingdom panel.
+
+## Practice range
+
+Open it from the Mission Gate. Walk up to a tablet at the camp and press E:
+
+- **Armory tablet:** use any of the 15 weapons. You go back to your own weapon when you leave.
+- **Dragon tablet:** summon a loaner dragon of any element, rarity and flight level, or ride one of your own.
+- **Spell tablet:** slot practice Legendary scrolls that never run out, and refill Dragon Power.
+- **Enemy tablet:** spawn training dummies (they show your damage per second), critters, soldiers, armored knights and enemy rider dragons. You can also clear them all, make enemies harmless, turn on invincibility, refill everything, or leave.
+
 ## Controls
 
 | Action | Key |
