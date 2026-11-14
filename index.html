@@ -409,7 +409,7 @@ function freshState(){return{
   weapon:'iron',owned:['iron'],tools:[],salves:2,lures:0,
   food:{fire:0,ice:0,electric:0,poison:0,lava:0,void:0},
   carriedEgg:null,hatchery:null,dragons:[],active:null,nextId:1,bondReadyAt:0,
-  squire:{name:'Tobin',lvl:1,xp:0,exp:null,missions:0},scrolls:[],nextScroll:1,bark:null,sockets:{},season:new Date().getFullYear(),relic:false,relicDragon:null,
+  tutorialDone:true,tutDragon:null,squire:{name:'Tobin',lvl:1,xp:0,exp:null,missions:0},scrolls:[],nextScroll:1,bark:null,sockets:{},season:new Date().getFullYear(),relic:false,relicDragon:null,
   regions:REGIONS.map(()=>FACTION_IDS[Math.floor(Math.random()*3)]),
 };}
 function load(){try{const raw=localStorage.getItem(SAVE_KEY);if(raw){const o=JSON.parse(raw);if(o&&o.vendors&&o.faction)return Object.assign(freshState(),o);}}catch(e){}return null;}
@@ -430,6 +430,7 @@ function applyTestBoost(){if(!TEST_MODE)return;
   if(!S.testScrolls){S.testScrolls=true;for(const id of['fireball','bolt','poison'])addScroll(id);}// test mode: one of each Legendary scroll
   S.gold=UNLIMITED;S.material=UNLIMITED;
   // one fully raised dragon so riding can be tested right away
+  if(S.tutorialDone===false)return;// the tutorial hands out the first dragon
   const grown=S.dragons.filter(d=>d.growth>=100).length;
   const starters=[{rarity:'epic',element:'fire',lvl:3}];
   for(let i=grown;i<1;i++){const d=makeDragonFromEgg(starters[i]);d.growth=100;d.imprint=50;S.dragons.push(d);}
@@ -576,7 +577,7 @@ function setScene(next){if(cur){if(cur.cleanup)cur.cleanup();cur.scene.remove(ca
 // Block (hold right mouse): cuts melee damage from other players by 90%. Every other source (dragons, creatures, projectiles, fire, falls) goes through in full.
 const BLOCK_REDUCE=.9;let blockToastT=0;
 function hurt(n,src){if(!started||missionOver||cur.kind==='hub')return;
-  if(src==='player-melee'&&P.blocking){n*=1-BLOCK_REDUCE;if(performance.now()-blockToastT>1500){toast('Blocked','good');blockToastT=performance.now();}}
+  if(src==='player-melee'&&P.blocking){n*=1-BLOCK_REDUCE;TUTF.blocked=true;if(performance.now()-blockToastT>1500){toast('Blocked','good');blockToastT=performance.now();}}
   if(DPS.buff.hide>0)n*=1-hidePct();
   n*=1-barkStat('def');
   if(CH&&n>0)chantCancel('was interrupted by damage.');
@@ -644,7 +645,7 @@ function breath(){if(!started||modalOpen||!cur)return;if(cur.kind==='patrol'){cu
   if(!cur.onBreath){toast(`${d.name} is resting at the roost. Take it on a Dragon Feed mission.`);return;}
   cur.onBreath(d);}
 function drinkSalve(){if(!started||modalOpen||!cur||cur.kind==='hub')return;if(S.salves<1){toast('No salves left. The Alchemist sells them.','bad');return;}
-  if(P.hp>=maxHp()){toast('Already at full health.');return;}S.salves--;P.hp=Math.min(maxHp(),P.hp+45);toast('+45 health');updateHUD();}
+  if(P.hp>=maxHp()){toast('Already at full health.');return;}S.salves--;TUTF.salve=true;P.hp=Math.min(maxHp(),P.hp+45);toast('+45 health');updateHUD();}
 
 // ---------------------------------------------------------------- hub
 function buildHub(){
@@ -942,9 +943,9 @@ function buildPatrol(cfg){
   // things to grab: two supply crates and one stranded ally
   const pickups=[];
   const placeFar=()=>{const a=Math.PI+rnd(-1.1,1.1),r=rnd(55,110);return{x:Math.sin(a)*r,z:Math.cos(a)*r};};
-  for(let i=0;i<2;i++){const q=placeFar(),g=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(1.4,1.1,1.4),M(0x8a6234),0,.55,0));g.add(mesh(new THREE.BoxGeometry(1.5,.18,1.5),M(0xc9a35a,{metalness:.5}),0,1.1,0));
+  for(let i=0;i<(cfg.tut?1:2);i++){const q=cfg.tut?{x:28,z:44}:placeFar(),g=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(1.4,1.1,1.4),M(0x8a6234),0,.55,0));g.add(mesh(new THREE.BoxGeometry(1.5,.18,1.5),M(0xc9a35a,{metalness:.5}),0,1.1,0));
     const lab=makeLabel('Supply crate','',.55);lab.position.y=2.4;g.add(lab);g.position.set(q.x,0,q.z);sc.add(g);pickups.push({kind:'crate',m:g,state:'ground',name:'supply crate'});}
-  {const q=placeFar(),g=makeNPC(0x5f8fb0),lab=makeLabel('Stranded scout','Ally · carry to camp',.55);lab.position.y=2.8;g.add(lab);g.position.set(q.x,0,q.z);sc.add(g);pickups.push({kind:'scout',m:g,state:'ground',name:'scout'});}
+  if(!cfg.tut){const q=placeFar(),g=makeNPC(0x5f8fb0),lab=makeLabel('Stranded scout','Ally · carry to camp',.55);lab.position.y=2.8;g.add(lab);g.position.set(q.x,0,q.z);sc.add(g);pickups.push({kind:'scout',m:g,state:'ground',name:'scout'});}
 
   // your dragons
   // For now only one dragon flies as a mount: the active one (or the first fully raised dragon if the active one isn't grown).
@@ -962,11 +963,12 @@ function buildPatrol(cfg){
   // enemies
   const foes=[],soldiers=[],bodies=[],shots=[],myShots=[];
   let spawned=0,unseated=0,delivered=0,scoutSaved=false,held=null,struggle=null,qte=null,captor=null,carryT=0,breathCD=0,biteCD=0,won=false;
-  function spawnFoe(){spawned++;const a=rnd(-1,1)+Math.PI,r=rnd(90,120),m=makeDragon(0x5c3a5e,.95);m.position.set(Math.sin(a)*r,rnd(22,34),Math.cos(a)*r);sc.add(m);
+  function spawnFoe(){spawned++;const T=cfg.tut,a=T?rnd(0,Math.PI*2):rnd(-1,1)+Math.PI,r=T?rnd(45,60):rnd(90,120),m=makeDragon(0x5c3a5e,.95),o=T?playerPos():new THREE.Vector3();
+    m.position.set(o.x+Math.sin(a)*r,rnd(22,34),o.z+Math.cos(a)*r);sc.add(m);
     const rider=makeNPC(0x8a2f2f);rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
-    const hp=Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:rnd(2.5,4.5),grabCD:rnd(10,16),stun:0,t:0,hasRider:true});}
-  function checkSpawn(){const active=foes.filter(f=>f.hasRider).length;if(active<2&&spawned<TOTAL)spawnFoe();}
-  spawnFoe();spawnFoe();
+    const hp=cfg.tut?70:Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:cfg.tut?rnd(5,7):rnd(2.5,4.5),grabCD:cfg.tut?1e9:rnd(10,16),stun:0,t:0,hasRider:true});return foes[foes.length-1];}
+  function checkSpawn(){if(cfg.tut)return;const active=foes.filter(f=>f.hasRider).length;if(active<2&&spawned<TOTAL)spawnFoe();}
+  if(!cfg.tut){spawnFoe();spawnFoe();}
 
   const canopy=mesh(new THREE.SphereGeometry(2.2,12,6,0,Math.PI*2,0,Math.PI/2),M(0xd9c7a0,{side:THREE.DoubleSide}),0,3.2,0);canopy.visible=false;camera.add(canopy);
   const makeCanopy=()=>mesh(new THREE.SphereGeometry(1.4,10,5,0,Math.PI*2,0,Math.PI/2),M(0xbfa77e,{side:THREE.DoubleSide}),0,2.8,0);
@@ -975,6 +977,7 @@ function buildPatrol(cfg){
   setObjective('');
 
   function end(success,reason){if(missionOver)return;
+    if(cfg.tut){for(const d of roster)d.cdUntil=0;finishMission({kind:'tutorial',success,reason});return;}
     for(const d of roster){const c=DS[d.id].cd;d.cdUntil=c>0?Date.now()+c*1000:0;}
     finishMission({kind:'patrol',success,reason,cfg,unseated,delivered,scoutSaved,used:roster.filter(d=>DS[d.id].used)});}
 
@@ -1052,7 +1055,7 @@ function buildPatrol(cfg){
       return;}
     bodies.push({m:h.m,vy:0,dropH:y,openH:Math.min(y,rnd(2,22)),canChute:true,kind:h.kind,hp:h.hp,enemy:true});
     toast('Dropped. Watch how late they pull the chute.');}
-  function checkWin(){if(!won&&unseated>=TOTAL&&delivered>=2&&scoutSaved){won=true;toast('Patrol complete.','good');setTimeout(()=>end(true),900);}}
+  function checkWin(){if(cfg.tut)return;if(!won&&unseated>=TOTAL&&delivered>=2&&scoutSaved){won=true;toast('Patrol complete.','good');setTimeout(()=>end(true),900);}}
 
   // ----- being grabbed (break-free prompt, then dropped with a parachute)
   function renderQTE(){const el=$('#qte');if(!qte){el.hidden=true;return;}el.hidden=false;
@@ -1086,15 +1089,15 @@ function buildPatrol(cfg){
       if(f.hasRider){f.hasRider=false;unseated++;f.m.remove(f.rider);f.rider.scale.setScalar(1);f.rider.position.copy(f.m.position).add(new THREE.Vector3(0,1,0));sc.add(f.rider);
         bodies.push({m:f.rider,vy:3,dropH:f.rider.position.y,openH:Math.min(f.rider.position.y,rnd(4,20)),canChute:true,kind:'rider',hp:60,enemy:true});
         toast(`Enemy dragon downed. Its rider bailed out (${unseated}/${TOTAL}).`,'good');checkSpawn();checkWin();}}}
-  function damageSoldier(so,n){so.hp-=n;so.m.position.y=.3;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
+  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}so.hp-=n;so.m.position.y=.3;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
   function bite(){if(biteCD>0||!R)return;const ds=DS[R.d.id];if(R.state==='forced'||R.state==='landing')return;
     if(ds.st<STAM.bite){toast('Not enough stamina to bite.','bad');return;}
     ds.st-=STAM.bite;biteCD=.6;const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
-    for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(f.m.position.distanceTo(head)<6.5){damageFoe(f,atk*1.4);return;}}
+    for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(f.m.position.distanceTo(head)<6.5){tf.bite=true;damageFoe(f,atk*1.4);return;}}
     for(const so of soldiers){if(so.m.position.clone().setY(so.m.position.y+1).distanceTo(head)<5){damageSoldier(so,atk*1.5);return;}}}
   function footStrike(dmg){for(const so of soldiers.slice()){const d=Math.hypot(so.m.position.x-P.x,so.m.position.z-P.z);if(d<3.2&&facing(so.m.position.x,so.m.position.z)>.3)damageSoldier(so,dmg);}}
   function shootAt(f,tgt){const from=f.m.position.clone().add(new THREE.Vector3(0,.6,0)),v=tgt.clone().sub(from).normalize().multiplyScalar(28);
-    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);shots.push({m,v,life:0,dmg:11*DIFF});}
+    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
 
   function move(dt){
     if(P.mode==='foot'){updatePlayer(dt);P.y=0;return;}
@@ -1132,20 +1135,74 @@ function buildPatrol(cfg){
   const KEYS_RIDE='<span><kbd>W/S</kbd> speed</span><span><kbd>Mouse</kbd> steer</span><span><kbd>Space</kbd>/<kbd>C</kbd> up/down</span><span><kbd>Shift</kbd> dive</span><span><kbd>Click</kbd> bite</span><span><kbd>Q</kbd> breath</span><span><kbd>G</kbd> grab</span><span><kbd>R</kbd> land/take off</span>';
   const KEYS_FOOT='<span><kbd>WASD</kbd> move</span><span><kbd>Click</kbd>/<kbd>F</kbd> strike</span><span><kbd>RMB</kbd> block</span><span><kbd>R</kbd> mount/call dragon</span><span><kbd>V</kbd> send away</span><span><kbd>H</kbd> salve</span><span><kbd>1-4</kbd> dragon power</span><span><kbd>Z</kbd> scroll</span>';
 
-  return{kind:'patrol',scene:sc,colliders,interact,radius:RAD,move,
+  // ----- tutorial mode (first launch): walks the player through every riding and on-foot key, against weak enemies
+  const tf={w:0,s:0,yaw:0,lastYaw:null,up:0,down:0,dive:false,breath:false,bite:false,fell:false,blockLock:false};
+  let tutSteps=null,tutI=-1,tutUnseat0=0,snatcher=null;
+  const dn=()=>roster[0]?roster[0].name:'your dragon';
+  const flying=()=>P.mode==='mounted'&&R&&R.state==='flying';
+  const liveRiders=()=>foes.filter(f=>f.hasRider&&f.state!=='down'&&f.state!=='flee'&&f!==snatcher).length;
+  function tutRespawn(){P.hp=maxHp();P.mode='foot';P.y=0;P.vy=0;P.x=0;P.z=92;canopy.visible=false;qte=null;renderQTE();
+    if(captor){captor.state='fly';captor=null;}if(R&&R.state==='catching'){R.state='arriving';setTarget();}hurtA=.9;
+    toast('You went down. In the tutorial you get straight back up at the war camp.','bad');}
+  function makeSnatcher(){snatcher=spawnFoe();snatcher.grabCD=2.5;snatcher.fireCD=1e9;}
+  if(cfg.tut)tutSteps=[
+    {t:()=>`Your egg grew into ${dn()}. Walk up to it and press R to mount.`,done:()=>P.mode==='mounted'},
+    {t:()=>'Press R to take off.',done:()=>flying()},
+    {t:()=>'Hold W to fly faster, then hold S to slow down.',
+      tick:dt=>{if(flying()){if(keys.KeyW||keys.ArrowUp)tf.w+=dt;if(keys.KeyS||keys.ArrowDown)tf.s+=dt;}},done:()=>tf.w>1&&tf.s>.6},
+    {t:()=>'Steer by moving the mouse. Turn all the way around in the air.',
+      tick:()=>{if(tf.lastYaw!=null&&flying())tf.yaw+=Math.abs(P.yaw-tf.lastYaw);tf.lastYaw=P.yaw;},done:()=>tf.yaw>Math.PI*1.6},
+    {t:()=>'Hold Space to climb, then hold C to descend.',
+      tick:dt=>{if(flying()){if(keys.Space)tf.up+=dt;if(keys.KeyC||keys.ControlLeft)tf.down+=dt;}},done:()=>tf.up>.8&&tf.down>.6},
+    {t:()=>'Hold Shift to dive. A dive is fast, and flying into an enemy while diving hits it hard.',
+      tick:()=>{if(R&&R.diving)tf.dive=true;},done:()=>tf.dive},
+    {start:()=>{tutUnseat0=unseated;spawnFoe();spawnFoe();},t:()=>'Two weak enemy riders are flying in. Aim at one and press Q to breathe on it.',
+      tick:()=>{if(!liveRiders())spawnFoe();},done:()=>tf.breath},
+    {t:()=>'Fly right up to an enemy dragon and click to bite it.',tick:()=>{if(!liveRiders())spawnFoe();},done:()=>tf.bite},
+    {t:()=>`Unseat the enemy riders: bite, breathe or dive into their dragons, or fly close and press G to pull a rider off (${Math.min(2,unseated-tutUnseat0)}/2).`,
+      tick:()=>{if(!liveRiders()&&unseated-tutUnseat0<2)spawnFoe();},done:()=>unseated-tutUnseat0>=2},
+    {start:makeSnatcher,
+      t:()=>P.mode==='grabbed'?'Press the keys shown to break free from its claws.':P.mode==='falling'?`Press Space to open your parachute, or R to have ${dn()} catch you.`:P.mode==='chute'?'Steer with WASD as you float down.':
+        'An enemy rider is coming to snatch you off your dragon. Keep flying and let it grab you.',
+      tick:()=>{if(P.mode==='falling'||P.mode==='chute'||P.mode==='grabbed')tf.fell=true;if(!tf.fell&&(!foes.includes(snatcher)||!snatcher.hasRider))makeSnatcher();},
+      done:()=>tf.fell&&(P.mode==='mounted'||P.mode==='foot'),
+      end:()=>{if(snatcher&&snatcher.hasRider&&snatcher.state!=='down'){snatcher.state='flee';snatcher.t=0;}snatcher=null;}},
+    {t:()=>held&&held.kind==='crate'?'Carry the crate to the gold ring at the war camp and press G over the ring to drop it.':
+        'Mount up and take off if you need to (R), then fly low over the supply crate and press G to grab it.',done:()=>delivered>=1},
+    {t:()=>'Press R to land.',done:()=>(P.mode==='mounted'&&R&&R.state==='landed')||P.mode==='foot'},
+    {t:()=>'Press X to dismount.',done:()=>P.mode==='foot'},
+    {start:()=>{TUTF.blocked=false;tf.blockLock=true;for(let k=0;k<3;k++){const a=k*2.1,m=makeNPC(0x8a2f2f);m.position.set(P.x+Math.sin(a)*9,0,P.z+Math.cos(a)*9);sc.add(m);soldiers.push({m,hp:25,cd:1.5,tut:true});}},
+      t:()=>'Enemy soldiers! Hold the right mouse button to block one of their strikes.',done:()=>TUTF.blocked||wType()==='bow'},
+    {start:()=>{tf.blockLock=false;},t:()=>`Now strike them down: click or press F (${soldiers.filter(s=>s.tut).length} left).`,done:()=>!soldiers.some(s=>s.tut)},
+    {start:()=>{TUTF.dp=false;P.dp=dpMax();},t:()=>'Use Dragon Power: stand still, press 1 for Mending, then press the keys that appear.',
+      tick:()=>{if(!TUTF.dp&&!CH&&P.hp>=maxHp())P.hp=Math.max(1,maxHp()-30);},done:()=>TUTF.dp},
+    {t:()=>`Press V to send ${dn()} away to rest. While it is away it heals and gets its stamina back faster.`,done:()=>!R},
+    {t:()=>`Press R to call ${dn()} back.`,done:()=>R&&R.state==='idle'},
+    {start:()=>{TUTF.tab=false;},t:()=>'Press Tab to open your kingdom breakdown, then close it with Esc.',done:()=>TUTF.tab},
+  ];
+  function tutTick(dt){if(!tutSteps)return;
+    // the tutorial never grounds your dragon: stamina and health stay above a floor and there is no cooldown
+    const d0=roster[0];if(d0){const ds=DS[d0.id];ds.st=Math.max(ds.st,dStam(d0)*.35);ds.hp=Math.max(ds.hp,dHp(d0)*.35);ds.cd=0;}
+    if(tutI<0||tutSteps[tutI].done()){
+      if(tutI>=0){const s=tutSteps[tutI];if(s.end)s.end();toast('Step complete.','good');}
+      tutI++;if(tutI>=tutSteps.length){tutSteps=null;setObjective('');toast('Tutorial complete.','good');setTimeout(()=>end(true),900);return;}
+      const s=tutSteps[tutI];if(s.start)s.start();}
+    const s=tutSteps[tutI];if(s.tick)s.tick(dt);setObjective(`Tutorial ${tutI+1}/${tutSteps.length} · ${s.t()}`);}
+
+  return{kind:'patrol',tut:!!cfg.tut,scene:sc,colliders,interact,radius:RAD,move,
     arrowTargets(){const t=soldiers.map(so=>({x:so.m.position.x,z:so.m.position.z,y:so.m.position.y,h:2,r:.9,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d);}}));
       for(const f of foes)if(f.state!=='down')t.push({x:f.m.position.x,z:f.m.position.z,y:f.m.position.y-1.6,h:3.2,r:2.4,hit:d=>damageFoe(f,d)});return t;},
     squireTargets(){return soldiers.filter(so=>so.m.position.y<.5).map(so=>({x:so.m.position.x,z:so.m.position.z,r:1.1,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d);}}));},
     cleanup(){camera.remove(canopy);canopy.geometry.dispose();canopy.material.dispose();qte=null;renderQTE();touchHold.dive=false;},
-    abandon(){end(false,'You abandoned the patrol.');},
-    onDeath(){end(false,'You fell in battle. On a dragon mission, failing sends you back to the kingdom.');},
+    abandon(){end(false,cfg.tut?'You skipped the rest of the tutorial.':'You abandoned the patrol.');},
+    onDeath(){if(cfg.tut){tutRespawn();return;}end(false,'You fell in battle. On a dragon mission, failing sends you back to the kingdom.');},
     onAttack(dmg){if(P.mode==='mounted')bite();else if(P.mode==='foot')footStrike(dmg);},
     onBreath(){if(P.mode!=='mounted'||!R){toast(R?'Mount your dragon (R) to use its breath.':'Call your dragon (R) first.');return;}
       if(breathCD>0||R.state==='forced')return;const ds=DS[R.d.id];
       if(ds.st<STAM.breath){toast('Not enough stamina for breath.','bad');return;}
       ds.st-=STAM.breath;breathCD=.8;const f3=fwd3(),o=camera.getWorldPosition(new THREE.Vector3()).addScaledVector(f3,3),col=ELEMENTS[R.d.element].color;
       const m=mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.6}));m.position.copy(o);sc.add(m);
-      myShots.push({m,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
+      tf.breath=true;myShots.push({m,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
     onKey(code){
       if(qte)return qteKey(code);
       if(code==='Space'){if(P.mode==='falling'){openChute();return true;}return P.mode==='mounted'||P.mode==='chute';}
@@ -1253,9 +1310,94 @@ function buildPatrol(cfg){
         if(d<40&&d>1.3){so.m.position.x+=dx/d*4.5*dt;so.m.position.z+=dz/d*4.5*dt;so.m.rotation.y=Math.atan2(dx,dz);}
         if(d<1.8&&so.cd<=0){hurt(7*DIFF,'player-melee');so.cd=1.1;}}
       // objective
+      if(cfg.tut){tutTick(dt);return;}
       if(!won)setObjective(`Unseat enemy riders ${unseated}/${TOTAL} · Crates ${delivered}/2 · Scout ${scoutSaved?'rescued':'missing'}${held&&held.kind!=='rider'&&held.kind!=='soldier'?' · Fly to the war camp':''}`);
     }};
 }
+
+// ---------------------------------------------------------------- tutorial (first launch)
+// Part 1, on foot: move, sprint, fight weak nest guards, drink a salve, then take one of four eggs from a sleeping
+// mother dragon and escape. Part 2: the egg is now a fully grown dragon, and Sky Patrol in tutorial mode walks
+// through every riding key against weak riders and soldiers.
+const TUTF={};
+const TUT_EGGS=[{el:'electric',name:'Lightning'},{el:'poison',name:'Poison'},{el:'fire',name:'Fire'},{el:'ice',name:'Ice'}];
+function buildTutorialNest(){
+  const sc=baseScene(0x2b1714,30,120);const colliders=[],interact=[];
+  const ground=mesh(new THREE.CircleGeometry(62,48),M(0x2c2321));ground.rotation.x=-Math.PI/2;sc.add(ground);
+  for(let i=0;i<40;i++){const a=i/40*Math.PI*2,h=9+Math.random()*12;sc.add(mesh(new THREE.ConeGeometry(4+Math.random()*3,h,5),M(0x221a18),Math.sin(a)*48,h/2-.5,Math.cos(a)*48));}
+  const rand=rng(4242);
+  for(let i=0;i<14;i++){const a=rand()*Math.PI*2,r=16+rand()*20,x=Math.sin(a)*r,z=Math.cos(a)*r;if(Math.abs(x)<8)continue;
+    const s=1+rand()*1.8,rock=mesh(new THREE.DodecahedronGeometry(s,0),M(0x3a2e2a),x,s*.6,z);rock.rotation.set(rand()*3,rand()*3,0);sc.add(rock);colliders.push({x,z,r:s*.9,obj:rock});}
+  // the nest: warm stone, no lava, so it is safe to walk in
+  const NZ=-12;
+  const bed=mesh(new THREE.CircleGeometry(4.4,32),M(0x4a3626));bed.rotation.x=-Math.PI/2;bed.position.set(0,.04,NZ);sc.add(bed);
+  const rim=mesh(new THREE.TorusGeometry(4.6,.6,6,24),M(0x1e1614));rim.rotation.x=Math.PI/2;rim.position.set(0,.2,NZ);sc.add(rim);
+  const glow=new THREE.PointLight(0xff8a4a,1.8,26);glow.position.set(0,3,NZ);sc.add(glow);
+  const eggs=TUT_EGGS.map((E,i)=>{const x=-3+i*2,z=NZ+.5,m=makeEgg(E.el);m.position.set(x,.75,z);sc.add(m);
+    const lab=makeLabel(E.name,'Egg',.5);lab.position.set(x,2.3,z);sc.add(lab);return{E,x,z,m,lab,ph:i};});
+  // the mother, asleep behind her nest
+  const mom=makeDragon(0x8a4a3a,2.4);mom.position.set(0,1.4,-24);sc.add(mom);
+  const crits=[[-5,16],[5,13],[0,8]].map(([x,z])=>{const m=makeCritter(0xe2683a);m.position.set(x,0,z);m.rotation.y=Math.PI;sc.add(m);return{m,hp:20,cd:0};});
+  let stepI=-1,chosen=null,awake=false,portal=null,moved=0,lx=0,lz=34,momT=0,momAng=-Math.PI/2,fireCD=2.5;const proj=[];
+  const stepId=()=>steps[stepI]&&steps[stepI].id;
+  function pick(E){if(chosen)return;chosen=E.el;const e=eggs.find(x=>x.E===E);sc.remove(e.m);sc.remove(e.lab);
+    const col=ELEMENTS[E.el].color;eggVM.material.color.setHex(col);eggVM.material.emissive.setHex(col);eggVM.visible=true;
+    toast(`You took the ${E.name} egg.`,'good');}
+  for(const e of eggs)interact.push({x:e.x,z:e.z,r:1.6,enabled:()=>stepId()==='choose'&&!chosen,label:()=>`Take the ${e.E.name} egg`,action:()=>pick(e.E)});
+  function wake(){awake=true;momT=0;portal=makePortal(0xc9a35a);portal.position.set(0,0,32);sc.add(portal);toast('The mother dragon is waking up!','bad');}
+  const steps=[
+    {t:()=>'Move with WASD and look around with the mouse. Click the view to lock the mouse.',
+      tick:()=>{moved+=Math.hypot(P.x-lx,P.z-lz);lx=P.x;lz=P.z;},done:()=>moved>6},
+    {t:()=>'Hold Shift while moving to sprint. Sprinting uses stamina.',done:()=>P.st<ST_MAX-15},
+    {id:'fight',t:()=>`Nest guards! Strike them: click or press F (${crits.length} left).`,done:()=>!crits.length},
+    {start:()=>{S.salves=Math.max(S.salves,1);if(P.hp>=maxHp())P.hp=maxHp()-30;TUTF.salve=false;},t:()=>'You are hurt. Press H to drink a healing salve.',done:()=>TUTF.salve},
+    {id:'choose',t:()=>'The mother dragon is asleep. Walk into her nest, stand next to an egg and press E to take it: Lightning, Poison, Fire or Ice.',done:()=>!!chosen},
+    {start:wake,t:()=>'She woke up! Carry your egg to the golden portal behind you. Sprint with Shift and dodge her fire.',
+      done:()=>portal&&Math.hypot(P.x-portal.position.x,P.z-portal.position.z)<2.8},
+  ];
+  function hitCrit(c,dmg){c.hp-=dmg;c.m.userData.flash=.12;if(c.hp<=0){sc.remove(c.m);crits.splice(crits.indexOf(c),1);}}
+  function shoot(){mom.updateMatrixWorld();const from=mom.localToWorld(new THREE.Vector3(0,1.2,2.6)),to=new THREE.Vector3(P.x+rnd(-1,1),1,P.z+rnd(-1,1));
+    const s=mesh(new THREE.SphereGeometry(.45,10,8),new THREE.MeshStandardMaterial({color:0xe2552b,emissive:0xe2552b,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);
+    proj.push({m:s,v:to.sub(from).normalize().multiplyScalar(13),life:0});}
+  return{kind:'tutorial',tut:true,scene:sc,colliders,interact,radius:42,squireTargets:()=>[],
+    arrowTargets:()=>stepId()==='fight'?crits.map(c=>({x:c.m.position.x,z:c.m.position.z,r:1.2,h:1.4,hit:d=>{if(crits.includes(c))hitCrit(c,d);}})):[],
+    dynCollide(){if(awake)return;const dx=P.x-mom.position.x,dz=P.z-mom.position.z,d=Math.hypot(dx,dz),m=4.5;if(d<m&&d>1e-4){P.x=mom.position.x+dx/d*m;P.z=mom.position.z+dz/d*m;}},
+    onAttack(dmg){if(stepId()!=='fight')return;for(const c of crits.slice()){const d=Math.hypot(c.m.position.x-P.x,c.m.position.z-P.z);if(d<3.2&&facing(c.m.position.x,c.m.position.z)>.3)hitCrit(c,dmg);}},
+    onDeath(){P.hp=maxHp();P.x=0;P.z=awake?-2:30;P.yaw=awake?Math.PI:0;hurtA=.9;for(const p of proj)sc.remove(p.m);proj.length=0;toast('You went down. In the tutorial you get straight back up.','bad');},
+    abandon(){eggVM.visible=false;finishMission({kind:'tutorial',success:false});},
+    update(dt,t,active){
+      for(const e of eggs)if(e.m.parent){const s=1+Math.sin(t*3+e.ph)*.04;e.m.scale.set(s,1.35*s,s);}
+      if(!awake){mom.children[0].scale.y=.8+Math.sin(t*1.2)*.03;mom.userData.wingL.rotation.z=.15;mom.userData.wingR.rotation.z=-.15;}
+      if(portal)portal.userData.disc.material.opacity=.45+Math.sin(t*3)*.15;
+      if(!active)return;
+      // step machine
+      if(stepI<0||steps[stepI].done()){if(stepI>=0)toast('Step complete.','good');stepI++;
+        if(stepI>=steps.length){startTutorialRide(chosen);return;}if(steps[stepI].start)steps[stepI].start();}
+      const st=steps[stepI];if(st.tick)st.tick(dt);setObjective(`Tutorial ${stepI+1}/${steps.length} · ${st.t()}`);
+      // weak guards wake up once the fight step begins
+      for(const c of crits){tickFlash(c.m,dt);if(stepId()!=='fight')continue;c.cd-=dt;const dx=P.x-c.m.position.x,dz=P.z-c.m.position.z,d=Math.hypot(dx,dz)||1e-3;
+        if(d<24&&d>1.3){c.m.position.x+=dx/d*4*dt;c.m.position.z+=dz/d*4*dt;c.m.rotation.y=Math.atan2(dx,dz);c.m.position.y=Math.abs(Math.sin(t*12))*.1;}
+        if(d<1.7&&c.cd<=0){hurt(3);c.cd=1.1;}}
+      // the mother rises and circles, spitting slow fire you can dodge
+      if(awake){momT+=dt;flap(mom,t,6,.7);
+        if(momT<2){mom.position.y=1.4+momT*5;}
+        else{momAng+=dt*.4;const tx=Math.cos(momAng)*18,tz=Math.sin(momAng)*18-4,k=Math.min(1,dt*2);mom.position.x+=(tx-mom.position.x)*k;mom.position.y+=(11-mom.position.y)*k;mom.position.z+=(tz-mom.position.z)*k;
+          mom.lookAt(P.x,mom.position.y,P.z);fireCD-=dt;if(fireCD<=0){shoot();fireCD=2.6;}}}
+      for(let i=proj.length-1;i>=0;i--){const p=proj[i];p.life+=dt;p.m.position.addScaledVector(p.v,dt);
+        const dx=p.m.position.x-P.x,dy=p.m.position.y-1.2,dz=p.m.position.z-P.z;
+        if(dx*dx+dy*dy+dz*dz<1.4){hurt(6);sc.remove(p.m);proj.splice(i,1);continue;}
+        if(p.m.position.y<.3||p.life>5){sc.remove(p.m);proj.splice(i,1);}}}};
+}
+function startTutorial(){for(const k in TUTF)delete TUTF[k];closePanel(true);missionOver=false;
+  // quitting during the riding part and coming back skips straight to riding with the same dragon
+  if(S.tutDragon&&S.dragons.some(d=>d.id===S.tutDragon)){startTutorialRide(null);return;}
+  setScene(buildTutorialNest());P.x=0;P.z=34;P.yaw=0;P.pitch=0;P.hp=maxHp();save();
+  toast('Tutorial: learn the basics, then take your first dragon egg.');}
+function startTutorialRide(el){eggVM.visible=false;let d=S.dragons.find(x=>x.id===S.tutDragon);
+  if(!d){d=makeDragonFromEgg({rarity:'uncommon',element:el||'fire',lvl:1});d.growth=100;d.imprint=40;S.dragons.push(d);S.tutDragon=d.id;}
+  S.active=d.id;save();missionOver=false;
+  setScene(buildPatrol({lvl:1,tut:true,seed:Math.floor(Math.random()*1e9)}));P.x=0;P.z=90;P.y=0;P.yaw=0;P.pitch=0;P.hp=maxHp();
+  toast(el?`Seasons pass. Your ${ELEMENTS[el].name} egg hatched and grew into ${d.name}. Time to learn to ride.`:`Back to riding practice with ${d.name}.`,'good');}
 
 // ---------------------------------------------------------------- mission flow
 function startEggHunt(party,high){
@@ -1306,14 +1448,18 @@ function finishMission(r){
     if(r.success){title='The holy tree takes root';const n=T_.bark[0]+Math.floor(Math.random()*(T_.bark[1]-T_.bark[0]+1)),g=Math.round(40*T_.mul*gm),xp=Math.round(60*T_.mul);const be=r.cfg.element||'fire';barkInv()[be][0]+=n;S.gold+=g;S.won++;
       lines.push(`The tree you planted gives <b>${n} ${barkName(be,1)}</b> (you now have ${barkInv()[be][0]}). Combine and socket it at the Holy Tree in your kingdom.`,`+${g} gold · +${xp} XP${r.deaths?` · ${r.deaths} death${r.deaths>1?'s':''}`:''}`);grantXP(xp);}
     else{title='Trial failed';S.lost++;lines.push(r.reason,'+15 XP');grantXP(15);}}
+  else if(r.kind==='tutorial'){eyebrow='Tutorial';S.tutorialDone=true;const d=S.dragons.find(x=>x.id===S.tutDragon);
+    if(r.success){title='Tutorial complete';S.gold+=100;S.material+=30;
+      lines.push(`${d?d.name+' is yours and fully grown. ':''}You have used every key you need. Z reads a Legendary scroll once you find one, and E trades at the stalls in your kingdom.`,'+100 gold · +30 material · +50 XP');grantXP(50);}
+    else{title='Tutorial skipped';lines.push(d?`${d.name} is yours and waits at the Dragon Roost.`:'Start an egg hunt at the Mission Gate to get your first dragon.','The controls are always listed in the bottom corner of the screen.');}}
   else{const E=ELEMENTS[r.cfg.element];eyebrow=`Dragon Feed · ${E.name}`;
     if(r.success){title='Feed run complete';S.food[r.cfg.element]+=r.collected;const g=Math.round(15*gm),xp=25+5*r.collected;S.gold+=g;S.material+=15;if(r.collected>=3)S.won++;
       lines.push(`+${r.collected} ${E.food} (you now have ${S.food[r.cfg.element]})`,`+${g} gold · +15 material · +${xp} XP`);grantXP(xp);
       if(r.collected<3)lines.push('Fewer than 3 gathered, so this run does not count toward mission success.');}
     else{title='Mission failed';S.lost++;lines.push(r.reason,'+10 XP');grantXP(10);}}
-  if(Math.random()<.3){const i=Math.floor(Math.random()*3),opts=FACTION_IDS.filter(f=>f!==S.regions[i]);const nf=opts[Math.floor(Math.random()*opts.length)];S.regions[i]=nf;
+  if(r.kind!=='tutorial'&&Math.random()<.3){const i=Math.floor(Math.random()*3),opts=FACTION_IDS.filter(f=>f!==S.regions[i]);const nf=opts[Math.floor(Math.random()*opts.length)];S.regions[i]=nf;
     lines.push(`While you were away, ${FACTIONS[nf].name} seized ${REGIONS[i].name}.`);}
-  if(r.kind!=='relic')rollScroll(r,lines);
+  if(r.kind!=='relic'&&r.kind!=='tutorial')rollScroll(r,lines);
   sqMissionEnd(r,lines);
   save();updateHUD();
   openPanel({eyebrow:()=>eyebrow,title:()=>title,noClose:true,render:()=>`<ul class="result-lines">${lines.map(l=>`<li>${l}</li>`).join('')}</ul><button class="btn primary" type="button" data-act="returnHome">Return to the kingdom</button>`});
@@ -1661,7 +1807,7 @@ function renderChant(){const box=$('#chant');if(!CH){box.hidden=true;return;}box
   $('#chKeys').innerHTML=CH.seq.map((k,j)=>`<button type="button" class="${j<CH.i?'done':j===CH.i?'next':''}" tabindex="-1">${k.slice(3)}</button>`).join('');
   $('#chFill').style.width=(CH.t/CH.max*100)+'%';}
 function applyDP(A){if(P.dp<A.cost){toast(`Not enough Dragon Power for ${A.name}.`,'bad');return;}
-  P.dp-=A.cost;DPS.cd[A.id]=A.cd;
+  P.dp-=A.cost;DPS.cd[A.id]=A.cd;TUTF.dp=true;
   if(A.id==='heal'){const n=10+4*intel();P.hp=Math.min(maxHp(),P.hp+n);toast(`Mending: +${n} health`,'good');}
   else if(A.id==='fury'){DPS.buff.fury=A.dur;toast(`Fury: +${Math.round(furyPct()*100)}% attack for ${A.dur}s`,'good');}
   else if(A.id==='hide'){DPS.buff.hide=A.dur;toast(`Dragonhide: -${Math.round(hidePct()*100)}% damage taken for ${A.dur}s`,'good');}
@@ -1907,7 +2053,7 @@ const P_menu={eyebrow:()=>'DragonBlood',title:()=>'Menu',render(){
   h+='<p class="section-h">Riding (Sky Patrol)</p><p class="note">R mounts or calls your dragon, takes off and lands. While flying: W/S speed, mouse to steer, Space/C up and down, Shift to dive (also an attack), click to bite, Q for ranged breath, G to grab or drop items, allies and enemy riders. X dismounts after landing. V sends your dragon away to rest: it recovers stamina faster and heals 15%. An enemy rider can snatch you off your dragon into its claws. Press the keys shown to break free; you drop from where you are. Fail and it carries you higher before dropping you. Either way, Space opens the parachute, and R calls your dragon to dive and catch you before you land if it is not recovering and has stamina; how high you fell and how late you pull it decide the fall damage. When stamina hits zero the dragon lands at once and needs 3 to 5 minutes to recover (runs 6 times faster in this prototype). For now only your active dragon flies as a mount, so wait out its cooldown before riding again.</p>';
   h+='<p class="note">Progress saves in this browser automatically.</p>';
   if(TEST_MODE)h+='<p class="note" style="color:var(--brass)">Test mode is on: higher rider level, best gear, and unlimited gold and material.</p>'+row('Test: grant the relic','Skips the 0.1% search roll.','',btn('testRelic',null,'Grant relic',!!S.relic))+row('Test: end the year now','Runs the year-end wipe immediately with the current relic standings.','',btn('testWipe',null,'Trigger wipe',false,'danger'));
-  if(cur&&cur.kind!=='hub'&&!missionOver)h+=row('Abandon mission','Counts as a failed mission.','',btn('abandon',null,'Abandon',false,'danger'));
+  if(cur&&cur.kind!=='hub'&&!missionOver)h+=cur.tut?row('Skip tutorial','Go straight to your kingdom. You keep your dragon if you already have it.','',btn('abandon',null,'Skip',false,'danger')):row('Abandon mission','Counts as a failed mission.','',btn('abandon',null,'Abandon',false,'danger'));
   h+=row('Start over','Erases this save and returns to faction selection.','',resetArm?btn('resetYes',null,'Erase everything',false,'danger')+btn('resetNo',null,'Keep my save'):btn('resetAsk',null,'Start over',false,'danger'));
   return h;}};
 
@@ -2018,7 +2164,7 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyE')interact();else if(e.code==='KeyF')attack();else if(e.code==='KeyQ')breath();else if(e.code==='KeyH')drinkSalve();
   else if(/^Digit[1-4]$/.test(e.code))castDP(+e.code[5]-1);
   else if(e.code==='KeyZ')castScroll();
-  else if(e.code==='Tab'){e.preventDefault();openPanel(P_kingdom);}
+  else if(e.code==='Tab'){e.preventDefault();TUTF.tab=true;openPanel(P_kingdom);}
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
@@ -2051,7 +2197,7 @@ $('#tRide').addEventListener('pointerdown',rideTap('KeyR'));$('#tGrab').addEvent
 $('#tDive').addEventListener('pointerdown',e=>{e.preventDefault();touchHold.dive=true;});
 for(const ev of['pointerup','pointercancel','pointerleave'])$('#tDive').addEventListener(ev,()=>{touchHold.dive=false;});
 $('#qteKeys').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-k]');if(b&&cur&&cur.onKey){e.preventDefault();cur.onKey(b.dataset.k);}});
-$('#kBadge').addEventListener('click',()=>{if(started&&!modalOpen)openPanel(P_kingdom);});
+$('#kBadge').addEventListener('click',()=>{if(started&&!modalOpen){TUTF.tab=true;openPanel(P_kingdom);}});
 $('#menuBtn').addEventListener('click',()=>{if(started&&!(curPanel&&curPanel.noClose)){resetArm=false;openPanel(P_menu);}});
 
 // ---------------------------------------------------------------- title
@@ -2068,13 +2214,14 @@ function renderFactions(){
 $('#factionCards').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b)return;pickFaction=b.dataset.f;renderFactions();});
 $('#tributeSeg').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;pickTribute=b.dataset.t;renderFactions();});
 function enterGame(){ $('#title').hidden=true;started=true;holyTick();seasonInit();applyTestBoost();lastTier=kingdom().tier;buildWeaponModel();
+  if(!S.tutorialDone){updateChrome();updateHUD();startTutorial();return;}
   setScene(buildHub());P.x=0;P.z=4;P.yaw=0;P.pitch=-.05;P.hp=maxHp();
   if(S.carriedEgg&&S.carriedEgg.expiresAt==null)S.carriedEgg.expiresAt=Date.now()+60000;
   updateChrome();updateHUD();save();
   if(TEST_MODE)toast(`Test mode: rider level ${S.playerLvl}, Wyrmslayer and all tools, stalls at level 5, unlimited gold and material.`,'good');
   checkSeason();
   if(!S.won&&!S.dragons.length)toast('Welcome. Visit the stalls, then take an egg hunt at the Mission Gate.');}
-$('#foundBtn').addEventListener('click',()=>{if(!pickFaction)return;S=freshState();S.faction=pickFaction;S.tribute=pickTribute;enterGame();});
+$('#foundBtn').addEventListener('click',()=>{if(!pickFaction)return;S=freshState();S.faction=pickFaction;S.tribute=pickTribute;S.tutorialDone=false;enterGame();});
 $('#continueBtn').addEventListener('click',enterGame);
 
 // ---------------------------------------------------------------- loop
