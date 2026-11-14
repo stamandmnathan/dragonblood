@@ -26,5 +26,6 @@ It also has touch controls on phones and tablets.
 
 ## Notes
 
-- `TEST_MODE` in `index.html` is currently `true`. That gives you max gear, unlimited gold and material, and two fully grown dragons. Set it to `false` for normal progression.
+- `TEST_MODE` in `index.html` is currently `true`. That gives you max gear, unlimited gold and material, and one fully grown dragon. Set it to `false` for normal progression.
+- Only one dragon (your active one) can be ridden as a flying mount for now.
 - This is a single-player prototype of the core loop. Multiplayer, factions, and the other planned systems aren't built yet.

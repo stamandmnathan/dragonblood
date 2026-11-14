@@ -429,10 +429,10 @@ function applyTestBoost(){if(!TEST_MODE)return;
   S.salves=Math.max(S.salves,10);
   if(!S.testScrolls){S.testScrolls=true;for(const id of['fireball','bolt','poison'])addScroll(id);}// test mode: one of each Legendary scroll
   S.gold=UNLIMITED;S.material=UNLIMITED;
-  // two fully raised dragons so riding can be tested right away
+  // one fully raised dragon so riding can be tested right away
   const grown=S.dragons.filter(d=>d.growth>=100).length;
-  const starters=[{rarity:'epic',element:'fire',lvl:3},{rarity:'rare',element:'electric',lvl:3}];
-  for(let i=grown;i<2;i++){const d=makeDragonFromEgg(starters[i]);d.growth=100;d.imprint=50;S.dragons.push(d);}
+  const starters=[{rarity:'epic',element:'fire',lvl:3}];
+  for(let i=grown;i<1;i++){const d=makeDragonFromEgg(starters[i]);d.growth=100;d.imprint=50;S.dragons.push(d);}
   if(!S.active||!S.dragons.some(d=>d.id===S.active&&d.growth>=100))S.active=S.dragons.find(d=>d.growth>=100).id;}
 
 const regionBonus=key=>S.faction&&REGIONS.some((r,i)=>r.key===key&&S.regions[i]===S.faction);
@@ -944,7 +944,9 @@ function buildPatrol(cfg){
   {const q=placeFar(),g=makeNPC(0x5f8fb0),lab=makeLabel('Stranded scout','Ally · carry to camp',.55);lab.position.y=2.8;g.add(lab);g.position.set(q.x,0,q.z);sc.add(g);pickups.push({kind:'scout',m:g,state:'ground',name:'scout'});}
 
   // your dragons
-  const roster=S.dragons.filter(d=>d.growth>=100);
+  // For now only one dragon flies as a mount: the active one (or the first fully raised dragon if the active one isn't grown).
+  const _ad=activeDragon(),_mount=_ad&&_ad.growth>=100?_ad:S.dragons.find(d=>d.growth>=100);
+  const roster=_mount?[_mount]:[];
   const DS={};for(const d of roster)DS[d.id]={hp:dHp(d),st:dStam(d),cd:d.cdUntil&&d.cdUntil>Date.now()?(d.cdUntil-Date.now())/1000:0,away:true,used:false,wounded:false};
   let R=null,lastId=S.active;
   function spawnDragon(d,x,y,z,state){const m=makeDragon(ELEMENTS[d.element].color,.95);m.rotation.order='YXZ';m.position.set(x,y,z);sc.add(m);DS[d.id].away=false;DS[d.id].used=true;
@@ -979,7 +981,7 @@ function buildPatrol(cfg){
   function setTarget(){const f=fwd();R.target=new THREE.Vector3(P.x+f.x*5,GY,P.z+f.z*5);}
   function callDragon(d){if(R)removeDragon();const a=Math.random()*Math.PI*2;spawnDragon(d,P.x+Math.cos(a)*55,30,P.z+Math.sin(a)*55,'arriving');setTarget();toast(`You called ${d.name}. It is on its way.`);}
   function swap(){const other=roster.find(d=>d.id!==R.d.id&&DS[d.id].cd<=0);
-    if(!other){toast(`${R.d.name} is recovering (${fmtShort(DS[R.d.id].cd)}) and you have no other fully raised dragon ready.`,'bad');return;}
+    if(!other){toast(`${R.d.name} is recovering (${fmtShort(DS[R.d.id].cd)}) and only one dragon can fly as a mount for now. Wait for it to recover.`,'bad');return;}
     const old=R.d,ds=DS[old.id];ds.cd*=1.5;removeDragon();
     toast(`${old.name} was sent away to make room for the swap. Its cooldown is longer: ${fmtShort(ds.cd)}.`,'bad');callDragon(other);}
   function sendAway(){if(qte||P.mode==='grabbed'||P.mode==='falling'||P.mode==='chute')return;
@@ -989,7 +991,7 @@ function buildPatrol(cfg){
     toast(`${d.name} flew off to rest: +${heal} health and faster stamina recovery. R calls it back.`,'good');}
   function exhausted(){const d=R.d,ds=DS[d.id];if(ds.hp<=0){ds.hp=0;ds.wounded=true;}ds.cd=dCool(d);
     if(P.mode==='mounted')dismount();R.state='idle';
-    toast(`${d.name} landed and needs ${fmtShort(ds.cd)} to recover (${Math.round(dCoolDesign(d)/60*10)/10} min at full game speed). R calls another dragon.`,'bad');}
+    toast(`${d.name} landed and needs ${fmtShort(ds.cd)} to recover (${Math.round(dCoolDesign(d)/60*10)/10} min at full game speed). R calls it back once it recovers.`,'bad');}
   // While falling, your own dragon can swoop in and catch you before you hit the ground.
   function catchable(){const d=R?R.d:roster.find(x=>x.id===lastId&&DS[x.id].cd<=0)||roster.find(x=>DS[x.id].cd<=0);
     if(!d)return null;const ds=DS[d.id];return ds.cd<=0&&ds.st>=STAM.takeoff?d:null;}
@@ -1163,7 +1165,7 @@ function buildPatrol(cfg){
         const g=findGrab();if(g)return `<kbd>G</kbd>Grab the ${grabName(g)}`;
         if(R.state==='landed')return '<kbd>R</kbd>Take off · <kbd>X</kbd>Dismount · <kbd>V</kbd>Send away';return null;}
       if(P.mode==='foot'){if(!R)return roster.length?'<kbd>R</kbd>Call a dragon':null;const ds=DS[R.d.id],d2=Math.hypot(R.pos.x-P.x,R.pos.z-P.z);
-        if(ds.cd>0)return `${R.d.name} recovering ${fmtShort(ds.cd)} · <kbd>R</kbd>Call another dragon · <kbd>V</kbd>Send it away`;
+        if(ds.cd>0)return `${R.d.name} recovering ${fmtShort(ds.cd)} · <kbd>V</kbd>Send it away`;
         if(R.state==='idle'&&d2<6)return `<kbd>R</kbd>Mount ${R.d.name}`;
         if(R.state==='idle'||R.state==='drift')return `<kbd>R</kbd>Call ${R.d.name}`;}
       return null;},
@@ -1899,7 +1901,7 @@ const P_kingdom={eyebrow:()=>FACTIONS[S.faction].name,title:()=>{const k=kingdom
 let resetArm=false;
 const P_menu={eyebrow:()=>'DragonBlood',title:()=>'Menu',render(){
   let h='<p class="section-h">Controls</p><p class="note">WASD to move, Shift to sprint, mouse to look (click the view to capture the mouse, Esc to release). Click or F to strike (or loose an arrow with a bow). Z reads the Legendary scroll you slotted before the mission (stand still, press 3 keys). Keys 1 to 4 use Dragon Power on missions (stand still, then press the 4 keys shown in order; moving or taking damage cancels it): Mending heals, Fury boosts attack, Dragonhide boosts defense, Second Wind recovers stamina. Intelligence (shown in the kingdom panel) makes all four stronger. Your squire follows you on every mission and fights beside you; talk to him at his post, left of the plaza, to see his training and send him on expeditions. Hold right mouse to block (cuts melee damage from enemy riders by 90%). E to use. Q for dragon breath. H for a salve. Tab for the kingdom panel. On touch screens use the stick and the round buttons.</p>';
-  h+='<p class="section-h">Riding (Sky Patrol)</p><p class="note">R mounts or calls your dragon, takes off and lands. While flying: W/S speed, mouse to steer, Space/C up and down, Shift to dive (also an attack), click to bite, Q for ranged breath, G to grab or drop items, allies and enemy riders. X dismounts after landing. V sends your dragon away to rest: it recovers stamina faster and heals 15%. An enemy rider can snatch you off your dragon into its claws. Press the keys shown to break free; you drop from where you are. Fail and it carries you higher before dropping you. Either way, Space opens the parachute, and R calls your dragon to dive and catch you before you land if it is not recovering and has stamina; how high you fell and how late you pull it decide the fall damage. When stamina hits zero the dragon lands at once and needs 3 to 5 minutes to recover (runs 6 times faster in this prototype). During that cooldown, R calls another fully raised dragon, and the tired one gets a longer cooldown.</p>';
+  h+='<p class="section-h">Riding (Sky Patrol)</p><p class="note">R mounts or calls your dragon, takes off and lands. While flying: W/S speed, mouse to steer, Space/C up and down, Shift to dive (also an attack), click to bite, Q for ranged breath, G to grab or drop items, allies and enemy riders. X dismounts after landing. V sends your dragon away to rest: it recovers stamina faster and heals 15%. An enemy rider can snatch you off your dragon into its claws. Press the keys shown to break free; you drop from where you are. Fail and it carries you higher before dropping you. Either way, Space opens the parachute, and R calls your dragon to dive and catch you before you land if it is not recovering and has stamina; how high you fell and how late you pull it decide the fall damage. When stamina hits zero the dragon lands at once and needs 3 to 5 minutes to recover (runs 6 times faster in this prototype). For now only your active dragon flies as a mount, so wait out its cooldown before riding again.</p>';
   h+='<p class="note">Progress saves in this browser automatically.</p>';
   if(TEST_MODE)h+='<p class="note" style="color:var(--brass)">Test mode is on: higher rider level, best gear, and unlimited gold and material.</p>'+row('Test: grant the relic','Skips the 0.1% search roll.','',btn('testRelic',null,'Grant relic',!!S.relic))+row('Test: end the year now','Runs the year-end wipe immediately with the current relic standings.','',btn('testWipe',null,'Trigger wipe',false,'danger'));
   if(cur&&cur.kind!=='hub'&&!missionOver)h+=row('Abandon mission','Counts as a failed mission.','',btn('abandon',null,'Abandon',false,'danger'));
