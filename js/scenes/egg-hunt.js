@@ -17,7 +17,7 @@ function buildEggMission(cfg){
   const rim=mesh(new THREE.TorusGeometry(4.6,.7,6,24),M(0x1e1614));rim.rotation.x=Math.PI/2;rim.position.y=.2;sc.add(rim);
   const lavaLight=new THREE.PointLight(0xff6a2a,2.2,28);lavaLight.position.set(0,3,0);sc.add(lavaLight);
   const scale=2.1+ri*.35;
-  const boss=makeDragon(E.color,scale);boss.position.set(0,12,-22);sc.add(boss);
+  const boss=makeDragon(E.color,scale,cfg.element);boss.position.set(0,12,-22);sc.add(boss);
   const hpMax=Math.round(RR.hp*(1+.55*(cfg.party-1))*(1+.12*(cfg.lvl-1)));
   const dmgMul=(1+.25*(cfg.party-1))*(1+.08*(cfg.lvl-1))*(1+ri*.08);
   const B={hp:hpMax,max:hpMax,mode:'fly',t:0,ang:-Math.PI/2,fireCD:2.2,sweepCD:1.5,from:new THREE.Vector3(),to:new THREE.Vector3()};
@@ -49,7 +49,7 @@ function buildEggMission(cfg){
       checkpoint={x:0,z:7};
       obj('Carry the egg to the golden exit portal. Strike wild dragons to drive them off. They can only take the egg by killing you.');
     }else end(false,`The egg cracked during extraction (${pct(c)} chance). Better tools and a higher rider level raise the odds.`);}
-  function spawnWild(){const a=Math.random()*Math.PI*2;const m=makeDragon(new THREE.Color(E.color).lerp(new THREE.Color(0x777777),.45).getHex(),.85);
+  function spawnWild(){const a=Math.random()*Math.PI*2;const m=makeDragon(new THREE.Color(E.color).lerp(new THREE.Color(0x777777),.45).getHex(),.85,cfg.element);
     m.position.set(Math.sin(a)*44,14,Math.cos(a)*44);sc.add(m);wild.push({m,stun:0,kb:new THREE.Vector3(),ph:Math.random()*6,speed:(8.5+ri*.6)*(1+.04*(cfg.lvl-1))});}
 
   return{kind:'egg',scene:sc,colliders,interact,radius:42,

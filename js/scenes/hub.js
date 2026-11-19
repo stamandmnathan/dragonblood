@@ -66,7 +66,7 @@ function buildHub(){
   {const x=11,z=8;sc.add(mesh(new THREE.CylinderGeometry(3,3.3,1,10),M(0x6b625a),x,.5,z));
     sc.add(mesh(new THREE.DodecahedronGeometry(1.1,0),M(0x4e4741),x+1.4,1.5,z-1));
     const d=activeDragon();
-    if(d){const dm=makeDragon(ELEMENTS[d.element].color,.45+.55*d.growth/100);dm.position.set(x,1+.95*dm.scale.x,z);dm.lookAt(0,dm.position.y,0);sc.add(dm);anim.dragon=dm;}
+    if(d){const dm=makeDragon(ELEMENTS[d.element].color,.45+.55*d.growth/100,d.element);dm.position.set(x,1+.95*dm.scale.x,z);dm.lookAt(0,dm.position.y,0);sc.add(dm);anim.dragon=dm;}
     const lab=makeLabel('Dragon Roost',d?`${d.name} · ${Math.floor(d.growth)}% grown`:'No dragon yet');lab.position.set(x,4.6,z);sc.add(lab);
     colliders.push({x,z,r:3.2});interact.push({x,z,r:5,label:()=>'Visit the Dragon Roost',action:()=>openPanel(P_roost)});}
   // gate

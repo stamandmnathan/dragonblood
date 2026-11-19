@@ -1,7 +1,8 @@
 // ========================================================================
 // DragonBlood · 3D setup
 // three.js renderer and camera, mesh/scene helpers, and model builders
-// (labels, dragons, eggs, walls, NPCs, critters, portals, first-person weapon).
+// (labels, eggs, walls, NPCs, critters, portals) and the first-person rig.
+// Dragon and weapon models are in dragon-models.js and weapon-models.js.
 // ========================================================================
 'use strict';
 // --- renderer & camera
@@ -24,7 +25,7 @@ function baseScene(sky,near,far){const sc=new THREE.Scene();sc.background=new TH
   sc.add(new THREE.HemisphereLight(0xfff1e0,0x2a1e1e,.65));const sun=new THREE.DirectionalLight(0xffe2c0,.85);sun.position.set(20,40,10);sc.add(sun);return sc;}
 function disposeScene(sc){sc.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map)m.map.dispose();m.dispose();});}});}
 
-// --- labels, dragons, eggs, walls, NPCs, critters, portals
+// --- labels, eggs, walls, NPCs, critters, portals
 function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
 // Floating name tag (canvas texture sprite).
 function makeLabel(title,sub,scale){
@@ -39,28 +40,6 @@ function makeLabel(title,sub,scale){
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));
   sp.scale.set(3.4*scale,3.4*scale*c.height/512,1);return sp;
 }
-// Low-poly dragon model; wings in userData for flap().
-function makeDragon(color,scale){
-  const g=new THREE.Group();
-  const mat=M(color,{roughness:.55,metalness:.15});
-  const dark=M(new THREE.Color(color).multiplyScalar(.42),{roughness:.7,side:THREE.DoubleSide});
-  const body=mesh(new THREE.SphereGeometry(1,10,8),mat);body.scale.set(.9,.8,1.8);g.add(body);
-  const belly=mesh(new THREE.SphereGeometry(.8,8,6),dark,0,-.25,.2);belly.scale.set(.9,.6,1.6);g.add(belly);
-  const neck=mesh(new THREE.CylinderGeometry(.3,.5,1.5,7),mat,0,.75,1.65);neck.rotation.x=.9;g.add(neck);
-  const head=mesh(new THREE.ConeGeometry(.42,1.2,6),mat,0,1.2,2.55);head.rotation.x=Math.PI/2;g.add(head);
-  for(const s of[-1,1]){const h=mesh(new THREE.ConeGeometry(.09,.6,5),dark,s*.22,1.55,2.2);h.rotation.x=-.8;g.add(h);
-    g.add(mesh(new THREE.SphereGeometry(.07,6,6),new THREE.MeshBasicMaterial({color:0xfff2a0}),s*.24,1.33,2.65));}
-  const tail=mesh(new THREE.ConeGeometry(.45,3.2,6),mat,0,-.1,-3.1);tail.rotation.x=-Math.PI/2;g.add(tail);
-  for(let i=0;i<5;i++){const sp=mesh(new THREE.ConeGeometry(.12,.45,4),dark,0,.85-i*.12,.8-i*.6);g.add(sp);}
-  for(const[sx,sz]of[[-.55,.9],[.55,.9],[-.55,-.9],[.55,-.9]]){g.add(mesh(new THREE.CylinderGeometry(.14,.11,.9,6),dark,sx,-.85,sz));}
-  const wg=new THREE.BufferGeometry();
-  wg.setAttribute('position',new THREE.Float32BufferAttribute([0,0,.6, 3.9,.45,.1, 2.7,0,-1.7, 0,0,.6, 2.7,0,-1.7, .2,0,-1.3],3));wg.computeVertexNormals();
-  const wingL=new THREE.Group();wingL.position.set(.6,.55,.3);wingL.add(new THREE.Mesh(wg,dark));g.add(wingL);
-  const wingR=new THREE.Group();wingR.position.set(-.6,.55,.3);wingR.scale.x=-1;wingR.add(new THREE.Mesh(wg,dark));g.add(wingR);
-  g.userData={wingL,wingR,mats:[mat,dark],flash:0};g.scale.setScalar(scale||1);return g;
-}
-function flap(d,t,speed,amp){const a=Math.sin(t*speed)*amp;d.userData.wingL.rotation.z=a;d.userData.wingR.rotation.z=-a;}
-function tickFlash(o,dt){const u=o.userData;if(!u.mats)return;if(u.flash>0)u.flash-=dt;const on=u.flash>0;for(const m of u.mats)m.emissive.setHex(on?0x8a2a10:0x000000);}
 function makeEgg(el){const E=ELEMENTS[el];const m=mesh(new THREE.SphereGeometry(.5,18,14),new THREE.MeshStandardMaterial({color:E.color,emissive:E.color,emissiveIntensity:.45,roughness:.35,metalness:.2}));m.scale.set(1,1.35,1);return m;}
 // Ruined stone wall: stacked blocks with a row of colliders. A Legendary scroll blast can shatter it.
 function addWall(sc,colliders,x,z,ang,len){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ang;const mt=M(0x5d554d);
@@ -79,18 +58,4 @@ function makePortal(hex){const g=new THREE.Group();const ring=mesh(new THREE.Tor
 // --- first-person viewmodel (weapon and carried egg)
 const weaponRig=new THREE.Group();camera.add(weaponRig);
 const eggVM=makeEgg('fire');eggVM.scale.multiplyScalar(.55);eggVM.position.set(0,-.5,-.95);eggVM.visible=false;camera.add(eggVM);
-function buildWeaponModel(){weaponRig.clear();const w=WEAPONS[S.weapon],t=w.type||'sword';const g=new THREE.Group();
-  const metal=M(w.color,{metalness:.85,roughness:.3,flatShading:false}),gold=M(0xc9a35a,{metalness:.7,roughness:.35}),grip=M(0x2b1d16);
-  if(t==='bow'){// limbs as a partial torus, string, grip; held upright on the left
-    const limb=mesh(new THREE.TorusGeometry(.55,.028,6,20,Math.PI*.8),M(w.color,{roughness:.6}),0,0,0);limb.rotation.z=Math.PI/2+Math.PI*.1;g.add(limb);
-    const str=mesh(new THREE.BoxGeometry(.006,.006,1.04),M(0xe8e0d0),0,0,0);str.rotation.x=Math.PI/2;str.position.x=-.17;g.userData.string=str;g.add(str);
-    g.add(mesh(new THREE.CylinderGeometry(.035,.035,.18,6),grip,.55,0,0));
-    const arrow=new THREE.Group();arrow.add(mesh(new THREE.CylinderGeometry(.01,.01,.75,5),M(0x8a6a48),0,0,0));arrow.add(mesh(new THREE.ConeGeometry(.025,.08,5),M(0xb8b8c0,{metalness:.7}),0,.41,0));
-    arrow.rotation.z=-Math.PI/2;arrow.position.set(.2,0,0);g.add(arrow);g.userData.arrow=arrow;
-    g.rotation.set(0,Math.PI/2,.12);g.scale.setScalar(.55);g.position.set(.34,-.3,-.95);weaponRig.add(g);weaponRig.userData.blade=g;return;}
-  const len=t==='dagger'?.42:S.weapon==='great'||S.weapon==='slayer'?1.05:.9;
-  g.add(mesh(new THREE.BoxGeometry(t==='dagger'?.05:.06,len,.02),metal,0,len/2+.05,0));
-  g.add(mesh(new THREE.BoxGeometry(t==='dagger'?.16:.28,.05,.07),gold,0,.05,0));
-  g.add(mesh(new THREE.CylinderGeometry(.03,.03,t==='dagger'?.16:.24,6),grip,0,-.08,0));
-  g.position.set(.42,-.42,-.7);g.rotation.set(-.3,0,-.25);weaponRig.add(g);weaponRig.userData.blade=g;}
-buildWeaponModel();
+// buildWeaponModel() lives in weapon-models.js; makeDragon/flap/tickFlash in dragon-models.js.

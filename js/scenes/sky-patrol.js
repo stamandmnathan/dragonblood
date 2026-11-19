@@ -40,7 +40,7 @@ function buildPatrol(cfg){
   const roster=_mount?[_mount]:[];
   const DS={};for(const d of roster)DS[d.id]={hp:dHp(d),st:dStam(d),cd:d.cdUntil&&d.cdUntil>Date.now()?(d.cdUntil-Date.now())/1000:0,away:true,used:false,wounded:false};
   let R=null,lastId=S.active;
-  function spawnDragon(d,x,y,z,state){const m=makeDragon(ELEMENTS[d.element].color,.95);m.rotation.order='YXZ';m.position.set(x,y,z);sc.add(m);DS[d.id].away=false;DS[d.id].used=true;
+  function spawnDragon(d,x,y,z,state){const m=makeDragon(ELEMENTS[d.element].color,.95,d.element);m.rotation.order='YXZ';m.position.set(x,y,z);sc.add(m);DS[d.id].away=false;DS[d.id].used=true;
     R={d,m,pos:m.position,state,spd:0,diving:false,bank:0,target:null,noDiveMsg:0};lastId=d.id;return R;}
   function removeDragon(){if(!R)return;sc.remove(R.m);DS[R.d.id].away=true;R=null;}
   const ad=activeDragon();

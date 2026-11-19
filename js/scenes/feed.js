@@ -22,7 +22,7 @@ function buildFeedMission(cfg){
   const portal=makePortal(0xc9a35a);portal.position.set(0,0,38);sc.add(portal);
   let collected=0,timeLeft=90,breathCD=0;const parts=[];
   const d=activeDragon();let comp=null;
-  if(d&&d.growth>=100){comp=makeDragon(ELEMENTS[d.element].color,.9);comp.position.set(0,9,30);sc.add(comp);}
+  if(d&&d.growth>=100){comp=makeDragon(ELEMENTS[d.element].color,.9,d.element);comp.position.set(0,9,30);sc.add(comp);}
   interact.push({x:0,z:38,r:3.4,label:()=>`Return home with ${collected} ${E.food}`,action:()=>end(true)});
   setObjective(`Gather ${E.food} for your ${E.name} dragons. Complete this before time ends.`);
   function end(success,reason){if(missionOver)return;finishMission({kind:'feed',success,reason,cfg,collected});}
