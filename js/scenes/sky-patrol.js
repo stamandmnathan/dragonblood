@@ -169,8 +169,8 @@ function buildPatrol(cfg){
     else toast('Clean landing. The parachute absorbed the fall.','good');}
 
   // ----- combat
-  function damageFoe(f,n){if(f.state==='down')return;f.hp-=n;f.m.userData.flash=.15;
-    if(f.hp<=0){f.state='down';f.t=0;
+  function damageFoe(f,n){if(f.state==='down')return;f.hp-=n;f.m.userData.flash=.15;fxSparks(f.m.position,0xffa040,10);
+    if(f.hp<=0){f.state='down';f.t=0;fxExplode(f.m.position,0x6a4a5a,2.4);
       if(struggle&&struggle.foe===f)struggle=null;
       if(qte&&qte.foe===f){qte=null;renderQTE();}
       if(f.hasRider){f.hasRider=false;unseated++;f.m.remove(f.rider);f.rider.scale.setScalar(1);f.rider.position.copy(f.m.position).add(new THREE.Vector3(0,1,0));sc.add(f.rider);
@@ -179,12 +179,12 @@ function buildPatrol(cfg){
   function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
   function bite(){if(biteCD>0||!R)return;const ds=DS[R.d.id];if(R.state==='forced'||R.state==='landing')return;
     if(ds.st<STAM.bite){toast('Not enough stamina to bite.','bad');return;}
-    ds.st-=STAM.bite;biteCD=.6;const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
+    ds.st-=STAM.bite;biteCD=.6;dragonBite(R.m);const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
     for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(f.m.position.distanceTo(head)<6.5){tf.bite=true;damageFoe(f,atk*1.4);return;}}
     for(const so of soldiers){if(so.m.position.clone().setY(so.m.position.y+1).distanceTo(head)<5){damageSoldier(so,atk*1.5);return;}}}
   function footStrike(dmg){for(const so of soldiers.slice()){const d=Math.hypot(so.m.position.x-P.x,so.m.position.z-P.z);if(d<3.2&&facing(so.m.position.x,so.m.position.z)>.3)damageSoldier(so,dmg);}}
   function shootAt(f,tgt){const from=f.m.position.clone().add(new THREE.Vector3(0,.6,0)),v=tgt.clone().sub(from).normalize().multiplyScalar(28);
-    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
+    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);dragonBreathe(f.m,.5);fxFireball(m,0xb05cff,.9);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
 
   function move(dt){
     if(P.mode==='foot'){updatePlayer(dt);return;}
@@ -372,8 +372,8 @@ function buildPatrol(cfg){
       if(breathCD>0||R.state==='forced')return;const ds=DS[R.d.id];
       if(ds.st<STAM.breath){toast('Not enough stamina for breath.','bad');return;}
       ds.st-=STAM.breath;breathCD=.8;const f3=fwd3(),o=camera.getWorldPosition(new THREE.Vector3()).addScaledVector(f3,3),col=ELEMENTS[R.d.element].color;
-      const m=mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.6}));m.position.copy(o);sc.add(m);
-      tf.breath=true;myShots.push({m,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
+      const m=mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.6}));m.position.copy(o);sc.add(m);dragonBreathe(R.m,.45);fxFireball(m,col,1.3);
+      tf.breath=true;myShots.push({m,col,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
     onKey(code){
       if(qte)return qteKey(code);
       if(code==='Space'){if(P.mode==='falling'){openChute();return true;}return P.mode==='mounted'||P.mode==='chute';}
@@ -460,13 +460,13 @@ function buildPatrol(cfg){
       for(let i=shots.length-1;i>=0;i--){const sh=shots[i];sh.life+=dt;sh.m.position.addScaledVector(sh.v,dt);let hit=false;
         if(P.mode==='mounted'&&R){if(sh.m.position.distanceTo(R.pos)<2.8){dragonHurt(sh.dmg);hit=true;}}
         else if(P.mode!=='grabbed'&&sh.m.position.distanceTo(new THREE.Vector3(P.x,P.y+1,P.z))<1.5){hurt(sh.dmg);hit=true;}
-        if(hit||sh.m.position.y<0||sh.life>5){sc.remove(sh.m);shots.splice(i,1);}}
+        if(hit||sh.m.position.y<0||sh.life>5){if(hit||sh.m.position.y<0)fxExplode(sh.m.position,0xb05cff,hit?1.4:1.1);sc.remove(sh.m);shots.splice(i,1);}}
       // your breath
       for(let i=myShots.length-1;i>=0;i--){const sh=myShots[i];sh.life+=dt;sh.m.position.addScaledVector(sh.v,dt);let hit=false;
         for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(sh.m.position.distanceTo(f.m.position)<3.4){damageFoe(f,sh.dmg);hit=true;break;}}
         if(!hit)for(const so of soldiers){if(sh.m.position.distanceTo(so.m.position.clone().setY(1))<2.2){damageSoldier(so,sh.dmg);hit=true;break;}}
         if(!hit&&sh.m.position.y<.3){for(const so of soldiers.slice())if(Math.hypot(so.m.position.x-sh.m.position.x,so.m.position.z-sh.m.position.z)<4)damageSoldier(so,sh.dmg*.5);hit=true;}
-        if(hit||sh.life>1.6){sc.remove(sh.m);myShots.splice(i,1);}}
+        if(hit||sh.life>1.6){fxExplode(sh.m.position,sh.col,hit?2.2:.8);sc.remove(sh.m);myShots.splice(i,1);}}
       // falling bodies (dropped riders, crates, the scout)
       for(let i=bodies.length-1;i>=0;i--){const b=bodies[i];
         if(b.chute)b.m.position.y-=4*dt;else{b.vy-=22*dt;b.m.position.y+=b.vy*dt;if(b.canChute&&b.m.position.y<=b.openH){b.chute=true;b.canopy=makeCanopy();b.m.add(b.canopy);}}

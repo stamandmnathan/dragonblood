@@ -129,6 +129,7 @@ function updateViewmodel(dt){const g=weaponRig.userData.blade;if(!g)return;
 
 // --- player actions (strike, use, breath, salve)
 function attack(){if(!started||modalOpen||!cur||swingCD>0||P.blocking)return;const T_=WTYPES[wType()];swingCD=T_.cd/(1+barkStat('spd'));swingT=.001;
-  const dmg=weaponDmg()*(DPS.buff.fury>0?1+furyPct():1)*(Math.random()<barkStat('crit')?2:1);
+  const crit=Math.random()<barkStat('crit'),dmg=weaponDmg()*(DPS.buff.fury>0?1+furyPct():1)*(crit?2:1);
+  if(wType()!=='bow'&&P.mode==='foot'){const L=WEAPON_LOOKS[S.weapon]||{};fxSlash(wType(),crit?0xffd060:L.rune);}// swoosh
   if(wType()==='bow'){if(P.mode==='foot')fireArrow(dmg);else cur.onAttack&&cur.onAttack(dmg);return;}
   cur.onAttack&&cur.onAttack(dmg);}

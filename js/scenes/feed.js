@@ -31,7 +31,7 @@ function buildFeedMission(cfg){
     onDeath(){end(false,'You fell. The food you gathered was lost.');},
     onAttack(dmg){for(let i=crits.length-1;i>=0;i--){const c=crits[i];const dd=Math.hypot(c.m.position.x-P.x,c.m.position.z-P.z);
       if(dd<3.2&&facing(c.m.position.x,c.m.position.z)>.3){c.hp-=dmg;c.m.userData.flash=.12;if(c.hp<=0)killCrit(i);}}},
-    onBreath(dr){if(breathCD>0){toast(`${dr.name} needs ${breathCD.toFixed(1)}s to draw breath.`);return;}breathCD=3.5;
+    onBreath(dr){if(breathCD>0){toast(`${dr.name} needs ${breathCD.toFixed(1)}s to draw breath.`);return;}breathCD=3.5;if(comp)dragonBreathe(comp,.7);
       const dmg=30+dragonPower(dr),f=fwd();
       for(let i=0;i<24;i++){const p=mesh(new THREE.SphereGeometry(.25,6,5),new THREE.MeshBasicMaterial({color:ELEMENTS[dr.element].color,transparent:true,opacity:.9}),P.x+f.x,1.3,P.z+f.z);
         sc.add(p);parts.push({m:p,v:new THREE.Vector3(f.x*rnd(16,24)+rnd(-3,3),rnd(-1,1.5),f.z*rnd(16,24)+rnd(-3,3)),life:0});}

@@ -15,7 +15,7 @@ Open `index.html` in a modern browser. The first load needs an internet connecti
 | `index.html` | Markup and page shell |
 | `css/styles.css` | Game styles |
 | `js/core/` | Static data tables, the save (`S`) and stats derived from it |
-| `js/engine/` | three.js renderer, camera and model builders |
+| `js/engine/` | three.js renderer, camera, dragon and weapon models, animation and effects (`fx.js`) |
 | `js/player/` | Player movement, combat and arrows |
 | `js/scenes/` | One file per scene: hub, egg hunt, feed, Sky Patrol, tutorial, Holy Tree trial |
 | `js/systems/` | Missions, seasons, holy bark, scrolls, Dragon Power, squire |

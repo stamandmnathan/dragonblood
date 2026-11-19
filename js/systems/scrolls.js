@@ -31,7 +31,8 @@ function castScroll(){if(!started||modalOpen||!cur||missionOver||cur.kind==='hub
   CH={name:`${Sp.name} scroll`,seq:Array.from({length:3},()=>CH_KEYS[Math.floor(Math.random()*CH_KEYS.length)]),i:0,t:4,max:4,done:()=>fireScroll(s)};renderChant();}
 function fireScroll(s){const Sp=spellOf(s.id),f=fwd();
   const m=mesh(new THREE.SphereGeometry(.9,14,10),new THREE.MeshStandardMaterial({color:Sp.color,emissive:Sp.color,emissiveIntensity:2.4}));
-  m.position.set(P.x+f.x*1.6,1.6,P.z+f.z*1.6);cur.scene.add(m);SCR.shots.push({s,Sp,m,vx:f.x*30,vz:f.z*30,life:0});
+  m.position.set(P.x+f.x*1.6,1.6,P.z+f.z*1.6);cur.scene.add(m);
+  fxCast(Sp.color);fxTrail(m,{color:0xffffff,color1:Sp.color,size:1.5,life:.5,every:.3,smoke:true,flicker:true});SCR.shots.push({s,Sp,m,vx:f.x*30,vz:f.z*30,life:0});
   if(s.practice){SCR.used=false;toast(`${Sp.name} unleashed. Practice scrolls never run out.`,'good');return;}
   SCR.used=true;s.uses--;if(s.uses<=0)S.scrolls=S.scrolls.filter(x=>x!==s);save();
   toast(s.uses>0?`${Sp.name} scroll unleashed. ${s.uses} use${s.uses===1?'':'s'} left on it.`:`${Sp.name} scroll unleashed. The scroll crumbles to ash.`,'good');}
@@ -47,9 +48,9 @@ function scrollImpact(x,z,Sp,ts){const dmg=scrollDmg();let n=0;
   for(const t of ts)if(Math.hypot(t.x-x,t.z-z)<SCROLL_R+(t.r||1.2)*.5){try{t.hit(dmg);}catch(e){}n++;}
   // break walls, rocks and trees caught in the blast
   const broken=new Set();for(const c of cur.colliders)if(c.obj&&Math.hypot(c.x-x,c.z-z)<SCROLL_R+c.r)broken.add(c.obj);
-  for(const ob of broken){cur.scene.remove(ob);const p=new THREE.Vector3();ob.getWorldPosition(p);spBurst(p.x,p.z,0x8a7d70,1.6);}
+  for(const ob of broken){cur.scene.remove(ob);const p=new THREE.Vector3();ob.getWorldPosition(p);spBurst(p.x,p.z,0x8a7d70,1.6);fxDust(p.setY(1),16);}
   for(let i=cur.colliders.length-1;i>=0;i--)if(broken.has(cur.colliders[i].obj))cur.colliders.splice(i,1);
-  spBurst(x,z,Sp.color,SCROLL_R);hurtA=.9;
+  spBurst(x,z,Sp.color,SCROLL_R);fxExplode(new THREE.Vector3(x,1.2,z),Sp.color,7);hurtA=.9;
   const floor=Math.round(maxHp()*.1);if(P.hp>floor)P.hp=floor;updateHUD();
   toast(`The blast hits ${n} foe${n===1?'':'s'}${broken.size?` and shatters ${broken.size} wall${broken.size===1?'':'s'} and rock${broken.size===1?'':'s'}`:''}. The backlash leaves you at 10% health.`,'bad');}
 function spBurst(x,z,color,r){const sc=cur.scene,m=mesh(new THREE.SphereGeometry(r,16,12),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.6,depthWrite:false}));m.position.set(x,1,z);sc.add(m);

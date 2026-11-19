@@ -33,10 +33,10 @@ function buildEggMission(cfg){
   showBoss(bossTitle,1);obj('Wait for the mother dragon to land, then strike her on foot. Dodge her fire.');
 
   function end(success,reason){if(missionOver)return;finishMission({kind:'egg',success,reason,cfg,bossKilled});}
-  function shootFire(){boss.updateMatrixWorld();const from=boss.localToWorld(new THREE.Vector3(0,1.2,2.6));
+  function shootFire(){const from=dragonMouth(boss);dragonBreathe(boss,.6);
     let tx=P.x,tz=P.z;if(allies.length&&Math.random()<.3){const a=allies[Math.floor(Math.random()*allies.length)].m.position;tx=a.x;tz=a.z;}
     const to=new THREE.Vector3(tx+rnd(-1.5,1.5),1,tz+rnd(-1.5,1.5));const v=to.sub(from).normalize().multiplyScalar(15+ri*1.2);
-    const s=mesh(new THREE.SphereGeometry(.45+ri*.05,10,8),new THREE.MeshStandardMaterial({color:E.color,emissive:E.color,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);proj.push({m:s,v,life:0});}
+    const s=mesh(new THREE.SphereGeometry(.45+ri*.05,10,8),new THREE.MeshStandardMaterial({color:E.color,emissive:E.color,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);fxFireball(s,E.color,1+ri*.1);proj.push({m:s,v,life:0});}
   function checkDead(){if(B.hp<=0&&B.mode!=='dying'){B.hp=0;B.mode='dying';B.t=0;bossKilled=true;hideBoss();toast('The mother dragon falls.','good');}}
   function startNest(){phase='nest';eggMesh=makeEgg(cfg.element);eggMesh.position.set(0,.75,0);sc.add(eggMesh);
     interact.push({x:0,z:0,r:3.6,enabled:()=>phase==='nest',label:()=>`Extract the egg · ${pct(extractChance())} chance`,action:extract});
@@ -99,8 +99,8 @@ function buildEggMission(cfg){
       // projectiles
       for(let i=proj.length-1;i>=0;i--){const p=proj[i];p.life+=dt;p.m.position.addScaledVector(p.v,dt);
         const dx=p.m.position.x-P.x,dy=p.m.position.y-1.2,dz=p.m.position.z-P.z;
-        if(dx*dx+dy*dy+dz*dz<1.4){hurt(9*dmgMul);sc.remove(p.m);proj.splice(i,1);continue;}
-        if(p.m.position.y<.3||p.life>5){if(Math.hypot(dx,dz)<2.2)hurt(4*dmgMul);sc.remove(p.m);proj.splice(i,1);}}
+        if(dx*dx+dy*dy+dz*dz<1.4){hurt(9*dmgMul);fxExplode(p.m.position,E.color,1.2);sc.remove(p.m);proj.splice(i,1);continue;}
+        if(p.m.position.y<.3||p.life>5){if(p.m.position.y<.3)fxExplode(p.m.position,E.color,1.8);if(Math.hypot(dx,dz)<2.2)hurt(4*dmgMul);sc.remove(p.m);proj.splice(i,1);}}
       // lava burns
       if(Math.hypot(P.x,P.z)<4.3){lastBurn+=dt;if(lastBurn>.25){hurt(3);lastBurn=0;}}
       // allies
