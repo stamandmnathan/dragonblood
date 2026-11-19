@@ -41,7 +41,7 @@ function buildTrial(cfg){
     const col={x,z,r:1.4};colliders.push(col);const hp=Math.round(160*D);shrines.push({g,ob,x,z,hp,max:hp,col,spawnT:rnd(1,4)});}
   // hollow husks (corrupted creatures)
   const husks=[];const maxH=5+2*di;
-  function spawnHusk(x,z){const m=makeCritter(0x9b6bff);m.position.set(x,0,z);sc.add(m);husks.push({m,hp:Math.round(40*D),cd:.6});}
+  function spawnHusk(x,z){const m=makeHusk(0x9b6bff);m.position.set(x,0,z);sc.add(m);husks.push({m,hp:Math.round(40*D),cd:.6});}
   for(const s of shrines)for(let i=0;i<2;i++)spawnHusk(s.x+rnd(-3,3),s.z+rnd(-3,3));
   let phase='shrines',timeLeft=cfg.timeLimit,deaths=0,plantP=0,growT=0,edgeT=3,checkpoint={x:0,z:36};const PLANT=8;
   const portal=makePortal(0xc9a35a);portal.position.set(0,0,40);sc.add(portal);
@@ -79,9 +79,9 @@ function buildTrial(cfg){
         else setObjective(`Plant the holy seed at the sacred spring. Press E. ${fmtShort(timeLeft)} left`);}
       else if(phase==='grow'){growT+=dt;setObjective('The new holy tree sheds its bark.');if(growT>2.6){end(true);return;}}
       // husk AI
-      for(const h of husks){h.cd-=dt;tickFlash(h.m,dt);const dx=P.x-h.m.position.x,dz=P.z-h.m.position.z,dd=Math.hypot(dx,dz)||1e-3;
+      for(const h of husks){h.cd-=dt;enemyAnim(h.m,dt);const dx=P.x-h.m.position.x,dz=P.z-h.m.position.z,dd=Math.hypot(dx,dz)||1e-3;
         if(dd>1.3){const sp=(4.2+.5*di);h.m.position.x+=dx/dd*sp*dt;h.m.position.z+=dz/dd*sp*dt;h.m.rotation.y=Math.atan2(dx,dz);h.m.position.y=Math.abs(Math.sin(t*10))*.1;}
-        if(dd<1.7&&h.cd<=0){hurt(6*D);h.cd=1.1;}}
+        if(dd<1.7&&h.cd<=0){enemyStrike(h.m);hurt(6*D);h.cd=1.1;}}
     }};
 }
 const P_tree={eyebrow:()=>'Sacred grove',title:()=>'Holy Tree',render(){

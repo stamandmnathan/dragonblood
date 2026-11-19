@@ -52,7 +52,7 @@ function buildPatrol(cfg){
   let spawned=0,unseated=0,delivered=0,scoutSaved=false,held=null,struggle=null,qte=null,captor=null,carryT=0,breathCD=0,biteCD=0,won=false;
   function spawnFoe(){spawned++;const T=cfg.tut||cfg.range,a=T?rnd(0,Math.PI*2):rnd(-1,1)+Math.PI,r=T?rnd(45,60):rnd(90,120),m=makeDragon(0x5c3a5e,.95),o=T?playerPos():new THREE.Vector3();
     m.position.set(o.x+Math.sin(a)*r,rnd(22,34),o.z+Math.cos(a)*r);sc.add(m);
-    const rider=makeNPC(0x8a2f2f);rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
+    const rider=makeRider();rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
     const hp=cfg.tut?70:Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:cfg.tut?rnd(5,7):rnd(2.5,4.5),grabCD:cfg.tut?1e9:rnd(10,16),stun:0,t:0,hasRider:true});return foes[foes.length-1];}
   function checkSpawn(){if(cfg.tut||cfg.range)return;const active=foes.filter(f=>f.hasRider).length;if(active<2&&spawned<TOTAL)spawnFoe();}
   if(!cfg.tut&&!cfg.range){spawnFoe();spawnFoe();}
@@ -176,7 +176,7 @@ function buildPatrol(cfg){
       if(f.hasRider){f.hasRider=false;unseated++;f.m.remove(f.rider);f.rider.scale.setScalar(1);f.rider.position.copy(f.m.position).add(new THREE.Vector3(0,1,0));sc.add(f.rider);
         bodies.push({m:f.rider,vy:3,dropH:f.rider.position.y,openH:Math.min(f.rider.position.y,rnd(4,20)),canChute:true,kind:'rider',hp:60,enemy:true});
         toast(`Enemy dragon downed. Its rider bailed out (${unseated}/${TOTAL}).`,'good');checkSpawn();checkWin();}}}
-  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
+  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;so.m.userData.flash=.15;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
   function bite(){if(biteCD>0||!R)return;const ds=DS[R.d.id];if(R.state==='forced'||R.state==='landing')return;
     if(ds.st<STAM.bite){toast('Not enough stamina to bite.','bad');return;}
     ds.st-=STAM.bite;biteCD=.6;dragonBite(R.m);const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
@@ -258,7 +258,7 @@ function buildPatrol(cfg){
         'Mount up and take off if you need to (R), then fly low over the supply crate and press G to grab it.',done:()=>delivered>=1},
     {t:()=>'Press R to land.',done:()=>(P.mode==='mounted'&&R&&R.state==='landed')||P.mode==='foot'},
     {t:()=>'Press X to dismount.',done:()=>P.mode==='foot'},
-    {start:()=>{TUTF.blocked=false;tf.blockLock=true;for(let k=0;k<3;k++){const a=k*2.1,m=makeNPC(0x8a2f2f);m.position.set(P.x+Math.sin(a)*9,0,P.z+Math.cos(a)*9);sc.add(m);soldiers.push({m,hp:25,cd:1.5,tut:true});}},
+    {start:()=>{TUTF.blocked=false;tf.blockLock=true;for(let k=0;k<3;k++){const a=k*2.1,m=makeSoldier();m.position.set(P.x+Math.sin(a)*9,0,P.z+Math.cos(a)*9);sc.add(m);soldiers.push({m,hp:25,cd:1.5,tut:true});}},
       t:()=>'Enemy soldiers! Hold the right mouse button to block one of their strikes.',done:()=>TUTF.blocked||wType()==='bow'},
     {start:()=>{tf.blockLock=false;},t:()=>`Now strike them down: click or press F (${soldiers.filter(s=>s.tut).length} left).`,done:()=>!soldiers.some(s=>s.tut)},
     {start:()=>{TUTF.dp=false;P.dp=dpMax();},t:()=>'Use Dragon Power: stand still, press 1 for Mending, then press the keys that appear.',
@@ -284,8 +284,8 @@ function buildPatrol(cfg){
   const RG_ENEMIES={
     dummy:{name:'Training dummy',desc:'Stands still and never dies. The bar at the top shows the damage you deal to it.',make:()=>({m:makeDummy(),hp:1e9,cd:0,dummy:true})},
     critter:{name:'Critter',desc:'Weak and quick. Bites for a little damage.',make:()=>({m:makeCritter(0xe2683a),hp:30,cd:1,dmg:4,src:'creature'})},
-    soldier:{name:'Soldier',desc:'An enemy foot soldier. Blocking (hold right mouse) cuts his strikes by 90%.',make:()=>({m:makeNPC(0x8a2f2f),hp:60,cd:1.2})},
-    knight:{name:'Armored knight',desc:'Tough and hits hard. Good for testing block, salves and Dragon Power.',make:()=>{const m=makeNPC(0x3a3d4a);m.scale.setScalar(1.25);return{m,hp:200,cd:1.4,dmg:13};}},
+    soldier:{name:'Soldier',desc:'An enemy foot soldier. Blocking (hold right mouse) cuts his strikes by 90%.',make:()=>({m:makeSoldier(),hp:60,cd:1.2})},
+    knight:{name:'Armored knight',desc:'Tough and hits hard. Good for testing block, salves and Dragon Power.',make:()=>({m:makeKnight(),hp:200,cd:1.4,dmg:13})},
     rider:{name:'Enemy rider dragon',desc:'Flies, spits fire and can snatch you off your dragon. Unseat it and the rider drops to fight on foot.'},
   };
   // ground enemies line up on the field in front of the camp, five to a row
@@ -476,10 +476,10 @@ function buildPatrol(cfg){
             else{soldiers.push({m:b.m,hp,cd:1});toast(dmg>0?`The rider took ${Math.round(dmg)} fall damage and fights on below.`:'The rider pulled the chute in time and fights on below.');}}
           else b.q.state='ground';}}
       // unseated riders fight on foot
-      for(const so of soldiers){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);
+      for(const so of soldiers){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);if(!so.dummy)enemyAnim(so.m,dt);
         if(P.mode!=='foot'||so.dummy||rg.passive)continue;const dx=P.x-so.m.position.x,dz=P.z-so.m.position.z,d=Math.hypot(dx,dz)||1e-3;
         if(d<40&&d>1.3){so.m.position.x+=dx/d*4.5*dt;so.m.position.z+=dz/d*4.5*dt;so.m.rotation.y=Math.atan2(dx,dz);}
-        if(d<1.8&&so.cd<=0){hurt((so.dmg||7)*DIFF,so.src||'player-melee');so.cd=1.1;}}
+        if(d<1.8&&so.cd<=0){enemyStrike(so.m);hurt((so.dmg||7)*DIFF,so.src||'player-melee');so.cd=1.1;}}
       // objective
       if(cfg.tut){tutTick(dt);return;}
       if(cfg.range){rgTick(dt);return;}

@@ -1,8 +1,8 @@
 // ========================================================================
 // DragonBlood · 3D setup
 // three.js renderer and camera, mesh/scene helpers, and model builders
-// (labels, eggs, walls, NPCs, critters, portals) and the first-person rig.
-// Dragon and weapon models are in dragon-models.js and weapon-models.js.
+// (labels, eggs, walls, NPCs, portals) and the first-person rig.
+// Dragon, enemy and weapon models are in dragon-models.js, enemy-models.js and weapon-models.js.
 // ========================================================================
 'use strict';
 // --- renderer & camera
@@ -25,7 +25,7 @@ function baseScene(sky,near,far){const sc=new THREE.Scene();sc.background=new TH
   sc.add(new THREE.HemisphereLight(0xfff1e0,0x2a1e1e,.65));const sun=new THREE.DirectionalLight(0xffe2c0,.85);sun.position.set(20,40,10);sc.add(sun);return sc;}
 function disposeScene(sc){sc.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(m.map)m.map.dispose();m.dispose();});}});}
 
-// --- labels, eggs, walls, NPCs, critters, portals
+// --- labels, eggs, walls, NPCs, portals
 function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
 // Floating name tag (canvas texture sprite).
 function makeLabel(title,sub,scale){
@@ -46,11 +46,7 @@ function addWall(sc,colliders,x,z,ang,len){const g=new THREE.Group();g.position.
   for(let i=0;i<Math.round(len/1.5);i++){const hh=1.6+((i*37)%5)*.35;g.add(mesh(new THREE.BoxGeometry(1.45,hh,1.1),mt,-len/2+.75+i*1.5,hh/2,0));}
   sc.add(g);const c=Math.cos(ang),s=Math.sin(ang);for(let d=-len/2+.6;d<=len/2-.5;d+=1.4)colliders.push({x:x+c*d,z:z-s*d,r:.95,obj:g});}
 function makeNPC(color){const g=new THREE.Group();g.add(mesh(new THREE.CylinderGeometry(.32,.45,1.3,8),M(color),0,.65,0));g.add(mesh(new THREE.SphereGeometry(.27,10,8),M(0xd9b48f),0,1.55,0));g.add(mesh(new THREE.ConeGeometry(.3,.4,8),M(0x2d2420),0,1.88,0));return g;}
-function makeCritter(color){const g=new THREE.Group();const c=new THREE.Color(color).multiplyScalar(.32);const mt=M(c);
-  g.add(mesh(new THREE.BoxGeometry(1,.7,1.4),mt,0,.6,0));g.add(mesh(new THREE.BoxGeometry(.7,.55,.6),mt,0,.8,.9));
-  for(const s of[-.18,.18])g.add(mesh(new THREE.SphereGeometry(.08,6,6),new THREE.MeshBasicMaterial({color}),s,.9,1.21));
-  for(const[x,z]of[[-.4,.5],[.4,.5],[-.4,-.5],[.4,-.5]])g.add(mesh(new THREE.BoxGeometry(.18,.4,.18),mt,x,.2,z));
-  g.userData={mats:[mt],flash:0};return g;}
+// makeCritter (and the other enemy models) live in enemy-models.js.
 function makePortal(hex){const g=new THREE.Group();const ring=mesh(new THREE.TorusGeometry(2.4,.25,8,28),M(0xc9a35a,{metalness:.6,roughness:.4}),0,2.8,0);g.add(ring);
   const disc=mesh(new THREE.CircleGeometry(2.25,28),new THREE.MeshBasicMaterial({color:hex,transparent:true,opacity:.55,side:THREE.DoubleSide}),0,2.8,0);g.add(disc);
   const l=new THREE.PointLight(hex,1.6,14);l.position.y=2.8;g.add(l);g.userData.disc=disc;return g;}

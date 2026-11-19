@@ -56,9 +56,9 @@ function buildTutorialNest(){
       if(stepI<0||steps[stepI].done()){if(stepI>=0)toast('Step complete.','good');stepI++;
         if(stepI>=steps.length){startTutorialRide(chosen);return;}if(steps[stepI].start)steps[stepI].start();}
       const st=steps[stepI];if(st.tick)st.tick(dt);setObjective(`Tutorial ${stepI+1}/${steps.length} · ${st.t()}`);
-      for(const c of crits){tickFlash(c.m,dt);if(stepId()!=='fight')continue;c.cd-=dt;const dx=P.x-c.m.position.x,dz=P.z-c.m.position.z,d=Math.hypot(dx,dz)||1e-3;
+      for(const c of crits){enemyAnim(c.m,dt);if(stepId()!=='fight')continue;c.cd-=dt;const dx=P.x-c.m.position.x,dz=P.z-c.m.position.z,d=Math.hypot(dx,dz)||1e-3;
         if(d<24&&d>1.3){c.m.position.x+=dx/d*4*dt;c.m.position.z+=dz/d*4*dt;c.m.rotation.y=Math.atan2(dx,dz);c.m.position.y=Math.abs(Math.sin(t*12))*.1;}
-        if(d<1.7&&c.cd<=0){hurt(3);c.cd=1.1;}}
+        if(d<1.7&&c.cd<=0){enemyStrike(c.m);hurt(3);c.cd=1.1;}}
       if(awake){momT+=dt;flap(mom,t,6,.7);
         if(momT<2){mom.position.y=1.4+momT*5;}
         else{momAng+=dt*.4;const tx=Math.cos(momAng)*18,tz=Math.sin(momAng)*18-4,k=Math.min(1,dt*2);mom.position.x+=(tx-mom.position.x)*k;mom.position.y+=(11-mom.position.y)*k;mom.position.z+=(tz-mom.position.z)*k;
