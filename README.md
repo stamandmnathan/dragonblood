@@ -14,7 +14,15 @@ Open `index.html` in a modern browser. The first load needs an internet connecti
 | --- | --- |
 | `index.html` | Markup and page shell |
 | `css/styles.css` | Game styles |
-| `js/game.js` | Game logic (three.js) |
+| `js/core/` | Static data tables, the save (`S`) and stats derived from it |
+| `js/engine/` | three.js renderer, camera and model builders |
+| `js/player/` | Player movement, combat and arrows |
+| `js/scenes/` | One file per scene: hub, egg hunt, feed, Sky Patrol, tutorial, Holy Tree trial |
+| `js/systems/` | Missions, seasons, holy bark, scrolls, Dragon Power, squire |
+| `js/ui/` | Panels, HUD, input, loadout and title screen |
+| `js/main.js` | Main loop and boot (loads last) |
+
+The scripts are plain `<script>` tags (not modules), so the game still runs from `file://`. They share one global scope and load in the order listed in `index.html`. At load time a file can only use what the files above it define.
 
 ## Tutorial
 
@@ -52,6 +60,6 @@ Press the Menu button in the game for a full control guide (on foot, Dragon Powe
 
 ## Notes
 
-- `TEST_MODE` in `js/game.js` is currently `true`. That gives you max gear, unlimited gold and material, and grown dragons for testing. Set it to `false` for normal progression.
+- `TEST_MODE` in `js/core/state.js` is currently `true`. That gives you max gear, unlimited gold and material, and grown dragons for testing. Set it to `false` for normal progression.
 - Only one dragon (your active one) can be ridden as a flying mount for now.
 - This is a single-player prototype of the core loop. Multiplayer, factions, and the other planned systems are not built yet.

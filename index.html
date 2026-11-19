@@ -104,6 +104,31 @@
   <div class="body" id="sheetBody"></div>
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="js/game.js"></script>
+<!-- Game scripts. Plain (non-module) scripts so the game still runs from file://.
+     They share one global scope and run in this order; a file may only use, at load
+     time, things defined in files above it. main.js boots the game and must stay last. -->
+<script src="js/core/data.js"></script>
+<script src="js/core/state.js"></script>
+<script src="js/engine/render.js"></script>
+<script src="js/player/player.js"></script>
+<script src="js/player/arrows.js"></script>
+<script src="js/scenes/hub.js"></script>
+<script src="js/scenes/egg-hunt.js"></script>
+<script src="js/scenes/feed.js"></script>
+<script src="js/scenes/sky-patrol.js"></script>
+<script src="js/scenes/tutorial.js"></script>
+<script src="js/systems/missions.js"></script>
+<script src="js/systems/seasons.js"></script>
+<script src="js/systems/holy-bark.js"></script>
+<script src="js/scenes/holy-tree-trial.js"></script>
+<script src="js/systems/scrolls.js"></script>
+<script src="js/ui/loadout.js"></script>
+<script src="js/systems/dragon-power.js"></script>
+<script src="js/systems/squire.js"></script>
+<script src="js/ui/panels.js"></script>
+<script src="js/ui/hud.js"></script>
+<script src="js/ui/input.js"></script>
+<script src="js/ui/title.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>
