@@ -28,8 +28,7 @@ function buildTrial(cfg){
   // sacred spring + seedling tree that grows when planted
   const spring=mesh(new THREE.CircleGeometry(3,32),new THREE.MeshStandardMaterial({color:0x6fd0c0,emissive:0x2a8f80,emissiveIntensity:.8}));spring.rotation.x=-Math.PI/2;spring.position.y=.05;sc.add(spring);
   const rim=mesh(new THREE.TorusGeometry(3.4,.35,6,28),M(0x8f8a7c));rim.rotation.x=Math.PI/2;rim.position.y=.15;sc.add(rim);
-  const tree=new THREE.Group();tree.add(mesh(new THREE.CylinderGeometry(.35,.6,4,8),M(0xd8c79a,{emissive:0x5a4a20,emissiveIntensity:.4}),0,2,0));
-  const crown=mesh(new THREE.IcosahedronGeometry(2.6,1),new THREE.MeshStandardMaterial({color:0xf2e6a8,emissive:0xd8b850,emissiveIntensity:.7,flatShading:true}),0,5,0);tree.add(crown);
+  const tree=makeHolyTree({seed:3});// see holy-tree.js
   tree.scale.setScalar(.01);tree.visible=false;sc.add(tree);
   const springLab=makeLabel('Sacred Spring','Plant the holy seed here',.6);springLab.position.set(0,4,0);springLab.visible=false;sc.add(springLab);
   // corrupted shrines
@@ -65,7 +64,7 @@ function buildTrial(cfg){
       for(const s of live()){const d=Math.hypot(s.x-P.x,s.z-P.z);if(d<3.6&&facing(s.x,s.z)>.3)hitShrine(s,dmg);}},
     update(dt,t,active){portal.userData.disc.material.opacity=.45+Math.sin(t*3)*.15;
       for(const s of live()){tickFlash(s.g,dt);s.ob.rotation.y+=dt*.4;}
-      if(tree.visible&&tree.scale.x<1){tree.scale.setScalar(Math.min(1,tree.scale.x+dt*.45));}crown.rotation.y+=dt*.2;
+      if(tree.visible&&tree.scale.x<1){tree.scale.setScalar(Math.min(1,tree.scale.x+dt*.45));}if(tree.visible)tree.userData.tick(dt,t);
       if(!active)return;
       timeLeft-=dt;if(timeLeft<=0){end(false,'Time ran out. On a timed mission, running out of time counts as failing.');return;}
       // spawning
