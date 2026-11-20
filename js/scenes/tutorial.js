@@ -39,8 +39,8 @@ function buildTutorialNest(){
       done:()=>portal&&Math.hypot(P.x-portal.position.x,P.z-portal.position.z)<2.8},
   ];
   function hitCrit(c,dmg){c.hp-=dmg;c.m.userData.flash=.12;if(c.hp<=0){sc.remove(c.m);crits.splice(crits.indexOf(c),1);}}
-  function shoot(){mom.updateMatrixWorld();const from=mom.localToWorld(new THREE.Vector3(0,1.2,2.6)),to=new THREE.Vector3(P.x+rnd(-1,1),1,P.z+rnd(-1,1));
-    const s=mesh(new THREE.SphereGeometry(.45,10,8),new THREE.MeshStandardMaterial({color:0xe2552b,emissive:0xe2552b,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);
+  function shoot(){const from=dragonMouth(mom);dragonBreathe(mom,.6);const to=new THREE.Vector3(P.x+rnd(-1,1),1,P.z+rnd(-1,1));
+    const s=mesh(new THREE.SphereGeometry(.45,10,8),new THREE.MeshStandardMaterial({color:0xe2552b,emissive:0xe2552b,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);fxFireball(s,0xe2552b,1);
     proj.push({m:s,v:to.sub(from).normalize().multiplyScalar(13),life:0});}
   return{kind:'tutorial',tut:true,scene:sc,colliders,interact,radius:42,squireTargets:()=>[],
     arrowTargets:()=>stepId()==='fight'?crits.map(c=>({x:c.m.position.x,z:c.m.position.z,r:1.2,h:1.4,hit:d=>{if(crits.includes(c))hitCrit(c,d);}})):[],
@@ -56,17 +56,17 @@ function buildTutorialNest(){
       if(stepI<0||steps[stepI].done()){if(stepI>=0)toast('Step complete.','good');stepI++;
         if(stepI>=steps.length){startTutorialRide(chosen);return;}if(steps[stepI].start)steps[stepI].start();}
       const st=steps[stepI];if(st.tick)st.tick(dt);setObjective(`Tutorial ${stepI+1}/${steps.length} · ${st.t()}`);
-      for(const c of crits){tickFlash(c.m,dt);if(stepId()!=='fight')continue;c.cd-=dt;const dx=P.x-c.m.position.x,dz=P.z-c.m.position.z,d=Math.hypot(dx,dz)||1e-3;
+      for(const c of crits){enemyAnim(c.m,dt);if(stepId()!=='fight')continue;c.cd-=dt;const dx=P.x-c.m.position.x,dz=P.z-c.m.position.z,d=Math.hypot(dx,dz)||1e-3;
         if(d<24&&d>1.3){c.m.position.x+=dx/d*4*dt;c.m.position.z+=dz/d*4*dt;c.m.rotation.y=Math.atan2(dx,dz);c.m.position.y=Math.abs(Math.sin(t*12))*.1;}
-        if(d<1.7&&c.cd<=0){hurt(3);c.cd=1.1;}}
+        if(d<1.7&&c.cd<=0){enemyStrike(c.m);hurt(3);c.cd=1.1;}}
       if(awake){momT+=dt;flap(mom,t,6,.7);
         if(momT<2){mom.position.y=1.4+momT*5;}
         else{momAng+=dt*.4;const tx=Math.cos(momAng)*18,tz=Math.sin(momAng)*18-4,k=Math.min(1,dt*2);mom.position.x+=(tx-mom.position.x)*k;mom.position.y+=(11-mom.position.y)*k;mom.position.z+=(tz-mom.position.z)*k;
           mom.lookAt(P.x,mom.position.y,P.z);fireCD-=dt;if(fireCD<=0){shoot();fireCD=2.6;}}}
       for(let i=proj.length-1;i>=0;i--){const p=proj[i];p.life+=dt;p.m.position.addScaledVector(p.v,dt);
         const dx=p.m.position.x-P.x,dy=p.m.position.y-1.2,dz=p.m.position.z-P.z;
-        if(dx*dx+dy*dy+dz*dz<1.4){hurt(6);sc.remove(p.m);proj.splice(i,1);continue;}
-        if(p.m.position.y<.3||p.life>5){sc.remove(p.m);proj.splice(i,1);}}}};
+        if(dx*dx+dy*dy+dz*dz<1.4){hurt(6);fxExplode(p.m.position,0xe2552b,1.2);sc.remove(p.m);proj.splice(i,1);continue;}
+        if(p.m.position.y<.3||p.life>5){if(p.m.position.y<.3)fxExplode(p.m.position,0xe2552b,1.8);sc.remove(p.m);proj.splice(i,1);}}}};
 }
 function startPracticeRange(){if(S.carriedEgg)return;closePanel(true);missionOver=false;if(!S.rangeWeapon)S.rangeWeapon=S.weapon;
   setScene(buildPatrol({lvl:1,range:true,seed:Math.floor(Math.random()*1e9)}));P.x=0;P.z=91;P.y=0;P.yaw=0;P.pitch=0;P.hp=maxHp();save();

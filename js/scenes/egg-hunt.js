@@ -17,7 +17,7 @@ function buildEggMission(cfg){
   const rim=mesh(new THREE.TorusGeometry(4.6,.7,6,24),M(0x1e1614));rim.rotation.x=Math.PI/2;rim.position.y=.2;sc.add(rim);
   const lavaLight=new THREE.PointLight(0xff6a2a,2.2,28);lavaLight.position.set(0,3,0);sc.add(lavaLight);
   const scale=2.1+ri*.35;
-  const boss=makeDragon(E.color,scale);boss.position.set(0,12,-22);sc.add(boss);
+  const boss=makeDragon(E.color,scale,cfg.element);boss.position.set(0,12,-22);sc.add(boss);
   const hpMax=Math.round(RR.hp*(1+.55*(cfg.party-1))*(1+.12*(cfg.lvl-1)));
   const dmgMul=(1+.25*(cfg.party-1))*(1+.08*(cfg.lvl-1))*(1+ri*.08);
   const B={hp:hpMax,max:hpMax,mode:'fly',t:0,ang:-Math.PI/2,fireCD:2.2,sweepCD:1.5,from:new THREE.Vector3(),to:new THREE.Vector3()};
@@ -33,10 +33,10 @@ function buildEggMission(cfg){
   showBoss(bossTitle,1);obj('Wait for the mother dragon to land, then strike her on foot. Dodge her fire.');
 
   function end(success,reason){if(missionOver)return;finishMission({kind:'egg',success,reason,cfg,bossKilled});}
-  function shootFire(){boss.updateMatrixWorld();const from=boss.localToWorld(new THREE.Vector3(0,1.2,2.6));
+  function shootFire(){const from=dragonMouth(boss);dragonBreathe(boss,.6);
     let tx=P.x,tz=P.z;if(allies.length&&Math.random()<.3){const a=allies[Math.floor(Math.random()*allies.length)].m.position;tx=a.x;tz=a.z;}
     const to=new THREE.Vector3(tx+rnd(-1.5,1.5),1,tz+rnd(-1.5,1.5));const v=to.sub(from).normalize().multiplyScalar(15+ri*1.2);
-    const s=mesh(new THREE.SphereGeometry(.45+ri*.05,10,8),new THREE.MeshStandardMaterial({color:E.color,emissive:E.color,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);proj.push({m:s,v,life:0});}
+    const s=mesh(new THREE.SphereGeometry(.45+ri*.05,10,8),new THREE.MeshStandardMaterial({color:E.color,emissive:E.color,emissiveIntensity:1.5}));s.position.copy(from);sc.add(s);fxFireball(s,E.color,1+ri*.1);proj.push({m:s,v,life:0});}
   function checkDead(){if(B.hp<=0&&B.mode!=='dying'){B.hp=0;B.mode='dying';B.t=0;bossKilled=true;hideBoss();toast('The mother dragon falls.','good');}}
   function startNest(){phase='nest';eggMesh=makeEgg(cfg.element);eggMesh.position.set(0,.75,0);sc.add(eggMesh);
     interact.push({x:0,z:0,r:3.6,enabled:()=>phase==='nest',label:()=>`Extract the egg · ${pct(extractChance())} chance`,action:extract});
@@ -49,7 +49,7 @@ function buildEggMission(cfg){
       checkpoint={x:0,z:7};
       obj('Carry the egg to the golden exit portal. Strike wild dragons to drive them off. They can only take the egg by killing you.');
     }else end(false,`The egg cracked during extraction (${pct(c)} chance). Better tools and a higher rider level raise the odds.`);}
-  function spawnWild(){const a=Math.random()*Math.PI*2;const m=makeDragon(new THREE.Color(E.color).lerp(new THREE.Color(0x777777),.45).getHex(),.85);
+  function spawnWild(){const a=Math.random()*Math.PI*2;const m=makeDragon(new THREE.Color(E.color).lerp(new THREE.Color(0x777777),.45).getHex(),.85,cfg.element);
     m.position.set(Math.sin(a)*44,14,Math.cos(a)*44);sc.add(m);wild.push({m,stun:0,kb:new THREE.Vector3(),ph:Math.random()*6,speed:(8.5+ri*.6)*(1+.04*(cfg.lvl-1))});}
 
   return{kind:'egg',scene:sc,colliders,interact,radius:42,
@@ -99,8 +99,8 @@ function buildEggMission(cfg){
       // projectiles
       for(let i=proj.length-1;i>=0;i--){const p=proj[i];p.life+=dt;p.m.position.addScaledVector(p.v,dt);
         const dx=p.m.position.x-P.x,dy=p.m.position.y-1.2,dz=p.m.position.z-P.z;
-        if(dx*dx+dy*dy+dz*dz<1.4){hurt(9*dmgMul);sc.remove(p.m);proj.splice(i,1);continue;}
-        if(p.m.position.y<.3||p.life>5){if(Math.hypot(dx,dz)<2.2)hurt(4*dmgMul);sc.remove(p.m);proj.splice(i,1);}}
+        if(dx*dx+dy*dy+dz*dz<1.4){hurt(9*dmgMul);fxExplode(p.m.position,E.color,1.2);sc.remove(p.m);proj.splice(i,1);continue;}
+        if(p.m.position.y<.3||p.life>5){if(p.m.position.y<.3)fxExplode(p.m.position,E.color,1.8);if(Math.hypot(dx,dz)<2.2)hurt(4*dmgMul);sc.remove(p.m);proj.splice(i,1);}}
       // lava burns
       if(Math.hypot(P.x,P.z)<4.3){lastBurn+=dt;if(lastBurn>.25){hurt(3);lastBurn=0;}}
       // allies

@@ -14,7 +14,7 @@ function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;
     if(active){sqUpdate(dt);dpUpdate(dt);spUpdate(dt);arrowsUpdate(dt);}if(started){sqTick();dpHUD();if(dpAcc%6===0)spHUD();}
     updateStaminaHUD();
     if(started){if(cur.placeCam)cur.placeCam();else placeCamera();}else{const a=T*.06;camera.position.set(Math.sin(a)*27,9,Math.cos(a)*27);camera.lookAt(0,3,-6);}
-    updateViewmodel(dt);renderer.render(cur.scene,camera);}
+    updateViewmodel(dt);fxUpdate(dt);renderer.render(cur.scene,camera);}
   hudTick(dt);requestAnimationFrame(frame);}
 // --- boot
 setScene(buildHub());showTitle();

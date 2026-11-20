@@ -42,6 +42,7 @@ function renderChant(){const box=$('#chant');if(!CH){box.hidden=true;return;}box
   $('#chFill').style.width=(CH.t/CH.max*100)+'%';}
 function applyDP(A){if(P.dp<A.cost){toast(`Not enough Dragon Power for ${A.name}.`,'bad');return;}
   P.dp-=A.cost;DPS.cd[A.id]=A.cd;TUTF.dp=true;
+  fxCast({heal:0x7dffa0,fury:0xff5a3a,hide:0xc9a35a,wind:0x9fd8ff}[A.id]);// rising ring of light
   if(A.id==='heal'){const n=10+4*intel();P.hp=Math.min(maxHp(),P.hp+n);toast(`Mending: +${n} health`,'good');}
   else if(A.id==='fury'){DPS.buff.fury=A.dur;toast(`Fury: +${Math.round(furyPct()*100)}% attack for ${A.dur}s`,'good');}
   else if(A.id==='hide'){DPS.buff.hide=A.dur;toast(`Dragonhide: -${Math.round(hidePct()*100)}% damage taken for ${A.dur}s`,'good');}

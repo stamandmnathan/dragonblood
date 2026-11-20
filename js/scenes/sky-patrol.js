@@ -40,7 +40,7 @@ function buildPatrol(cfg){
   const roster=_mount?[_mount]:[];
   const DS={};for(const d of roster)DS[d.id]={hp:dHp(d),st:dStam(d),cd:d.cdUntil&&d.cdUntil>Date.now()?(d.cdUntil-Date.now())/1000:0,away:true,used:false,wounded:false};
   let R=null,lastId=S.active;
-  function spawnDragon(d,x,y,z,state){const m=makeDragon(ELEMENTS[d.element].color,.95);m.rotation.order='YXZ';m.position.set(x,y,z);sc.add(m);DS[d.id].away=false;DS[d.id].used=true;
+  function spawnDragon(d,x,y,z,state){const m=makeDragon(ELEMENTS[d.element].color,.95,d.element);m.rotation.order='YXZ';m.position.set(x,y,z);sc.add(m);DS[d.id].away=false;DS[d.id].used=true;
     R={d,m,pos:m.position,state,spd:0,diving:false,bank:0,target:null,noDiveMsg:0};lastId=d.id;return R;}
   function removeDragon(){if(!R)return;sc.remove(R.m);DS[R.d.id].away=true;R=null;}
   const ad=activeDragon();
@@ -52,7 +52,7 @@ function buildPatrol(cfg){
   let spawned=0,unseated=0,delivered=0,scoutSaved=false,held=null,struggle=null,qte=null,captor=null,carryT=0,breathCD=0,biteCD=0,won=false;
   function spawnFoe(){spawned++;const T=cfg.tut||cfg.range,a=T?rnd(0,Math.PI*2):rnd(-1,1)+Math.PI,r=T?rnd(45,60):rnd(90,120),m=makeDragon(0x5c3a5e,.95),o=T?playerPos():new THREE.Vector3();
     m.position.set(o.x+Math.sin(a)*r,rnd(22,34),o.z+Math.cos(a)*r);sc.add(m);
-    const rider=makeNPC(0x8a2f2f);rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
+    const rider=makeRider();rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
     const hp=cfg.tut?70:Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:cfg.tut?rnd(5,7):rnd(2.5,4.5),grabCD:cfg.tut?1e9:rnd(10,16),stun:0,t:0,hasRider:true});return foes[foes.length-1];}
   function checkSpawn(){if(cfg.tut||cfg.range)return;const active=foes.filter(f=>f.hasRider).length;if(active<2&&spawned<TOTAL)spawnFoe();}
   if(!cfg.tut&&!cfg.range){spawnFoe();spawnFoe();}
@@ -169,22 +169,22 @@ function buildPatrol(cfg){
     else toast('Clean landing. The parachute absorbed the fall.','good');}
 
   // ----- combat
-  function damageFoe(f,n){if(f.state==='down')return;f.hp-=n;f.m.userData.flash=.15;
-    if(f.hp<=0){f.state='down';f.t=0;
+  function damageFoe(f,n){if(f.state==='down')return;f.hp-=n;f.m.userData.flash=.15;fxSparks(f.m.position,0xffa040,10);
+    if(f.hp<=0){f.state='down';f.t=0;fxExplode(f.m.position,0x6a4a5a,2.4);
       if(struggle&&struggle.foe===f)struggle=null;
       if(qte&&qte.foe===f){qte=null;renderQTE();}
       if(f.hasRider){f.hasRider=false;unseated++;f.m.remove(f.rider);f.rider.scale.setScalar(1);f.rider.position.copy(f.m.position).add(new THREE.Vector3(0,1,0));sc.add(f.rider);
         bodies.push({m:f.rider,vy:3,dropH:f.rider.position.y,openH:Math.min(f.rider.position.y,rnd(4,20)),canChute:true,kind:'rider',hp:60,enemy:true});
         toast(`Enemy dragon downed. Its rider bailed out (${unseated}/${TOTAL}).`,'good');checkSpawn();checkWin();}}}
-  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
+  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;so.m.userData.flash=.15;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
   function bite(){if(biteCD>0||!R)return;const ds=DS[R.d.id];if(R.state==='forced'||R.state==='landing')return;
     if(ds.st<STAM.bite){toast('Not enough stamina to bite.','bad');return;}
-    ds.st-=STAM.bite;biteCD=.6;const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
+    ds.st-=STAM.bite;biteCD=.6;dragonBite(R.m);const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
     for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(f.m.position.distanceTo(head)<6.5){tf.bite=true;damageFoe(f,atk*1.4);return;}}
     for(const so of soldiers){if(so.m.position.clone().setY(so.m.position.y+1).distanceTo(head)<5){damageSoldier(so,atk*1.5);return;}}}
   function footStrike(dmg){for(const so of soldiers.slice()){const d=Math.hypot(so.m.position.x-P.x,so.m.position.z-P.z);if(d<3.2&&facing(so.m.position.x,so.m.position.z)>.3)damageSoldier(so,dmg);}}
   function shootAt(f,tgt){const from=f.m.position.clone().add(new THREE.Vector3(0,.6,0)),v=tgt.clone().sub(from).normalize().multiplyScalar(28);
-    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
+    const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);dragonBreathe(f.m,.5);fxFireball(m,0xb05cff,.9);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
 
   function move(dt){
     if(P.mode==='foot'){updatePlayer(dt);return;}
@@ -258,7 +258,7 @@ function buildPatrol(cfg){
         'Mount up and take off if you need to (R), then fly low over the supply crate and press G to grab it.',done:()=>delivered>=1},
     {t:()=>'Press R to land.',done:()=>(P.mode==='mounted'&&R&&R.state==='landed')||P.mode==='foot'},
     {t:()=>'Press X to dismount.',done:()=>P.mode==='foot'},
-    {start:()=>{TUTF.blocked=false;tf.blockLock=true;for(let k=0;k<3;k++){const a=k*2.1,m=makeNPC(0x8a2f2f);m.position.set(P.x+Math.sin(a)*9,0,P.z+Math.cos(a)*9);sc.add(m);soldiers.push({m,hp:25,cd:1.5,tut:true});}},
+    {start:()=>{TUTF.blocked=false;tf.blockLock=true;for(let k=0;k<3;k++){const a=k*2.1,m=makeSoldier();m.position.set(P.x+Math.sin(a)*9,0,P.z+Math.cos(a)*9);sc.add(m);soldiers.push({m,hp:25,cd:1.5,tut:true});}},
       t:()=>'Enemy soldiers! Hold the right mouse button to block one of their strikes.',done:()=>TUTF.blocked||wType()==='bow'},
     {start:()=>{tf.blockLock=false;},t:()=>`Now strike them down: click or press F (${soldiers.filter(s=>s.tut).length} left).`,done:()=>!soldiers.some(s=>s.tut)},
     {start:()=>{TUTF.dp=false;P.dp=dpMax();},t:()=>'Use Dragon Power: stand still, press 1 for Mending, then press the keys that appear.',
@@ -284,8 +284,8 @@ function buildPatrol(cfg){
   const RG_ENEMIES={
     dummy:{name:'Training dummy',desc:'Stands still and never dies. The bar at the top shows the damage you deal to it.',make:()=>({m:makeDummy(),hp:1e9,cd:0,dummy:true})},
     critter:{name:'Critter',desc:'Weak and quick. Bites for a little damage.',make:()=>({m:makeCritter(0xe2683a),hp:30,cd:1,dmg:4,src:'creature'})},
-    soldier:{name:'Soldier',desc:'An enemy foot soldier. Blocking (hold right mouse) cuts his strikes by 90%.',make:()=>({m:makeNPC(0x8a2f2f),hp:60,cd:1.2})},
-    knight:{name:'Armored knight',desc:'Tough and hits hard. Good for testing block, salves and Dragon Power.',make:()=>{const m=makeNPC(0x3a3d4a);m.scale.setScalar(1.25);return{m,hp:200,cd:1.4,dmg:13};}},
+    soldier:{name:'Soldier',desc:'An enemy foot soldier. Blocking (hold right mouse) cuts his strikes by 90%.',make:()=>({m:makeSoldier(),hp:60,cd:1.2})},
+    knight:{name:'Armored knight',desc:'Tough and hits hard. Good for testing block, salves and Dragon Power.',make:()=>({m:makeKnight(),hp:200,cd:1.4,dmg:13})},
     rider:{name:'Enemy rider dragon',desc:'Flies, spits fire and can snatch you off your dragon. Unseat it and the rider drops to fight on foot.'},
   };
   // ground enemies line up on the field in front of the camp, five to a row
@@ -372,8 +372,8 @@ function buildPatrol(cfg){
       if(breathCD>0||R.state==='forced')return;const ds=DS[R.d.id];
       if(ds.st<STAM.breath){toast('Not enough stamina for breath.','bad');return;}
       ds.st-=STAM.breath;breathCD=.8;const f3=fwd3(),o=camera.getWorldPosition(new THREE.Vector3()).addScaledVector(f3,3),col=ELEMENTS[R.d.element].color;
-      const m=mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.6}));m.position.copy(o);sc.add(m);
-      tf.breath=true;myShots.push({m,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
+      const m=mesh(new THREE.SphereGeometry(.7,10,8),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.6}));m.position.copy(o);sc.add(m);dragonBreathe(R.m,.45);fxFireball(m,col,1.3);
+      tf.breath=true;myShots.push({m,col,v:f3.multiplyScalar(60),life:0,dmg:dragonPower(R.d)*1.1});},
     onKey(code){
       if(qte)return qteKey(code);
       if(code==='Space'){if(P.mode==='falling'){openChute();return true;}return P.mode==='mounted'||P.mode==='chute';}
@@ -460,13 +460,13 @@ function buildPatrol(cfg){
       for(let i=shots.length-1;i>=0;i--){const sh=shots[i];sh.life+=dt;sh.m.position.addScaledVector(sh.v,dt);let hit=false;
         if(P.mode==='mounted'&&R){if(sh.m.position.distanceTo(R.pos)<2.8){dragonHurt(sh.dmg);hit=true;}}
         else if(P.mode!=='grabbed'&&sh.m.position.distanceTo(new THREE.Vector3(P.x,P.y+1,P.z))<1.5){hurt(sh.dmg);hit=true;}
-        if(hit||sh.m.position.y<0||sh.life>5){sc.remove(sh.m);shots.splice(i,1);}}
+        if(hit||sh.m.position.y<0||sh.life>5){if(hit||sh.m.position.y<0)fxExplode(sh.m.position,0xb05cff,hit?1.4:1.1);sc.remove(sh.m);shots.splice(i,1);}}
       // your breath
       for(let i=myShots.length-1;i>=0;i--){const sh=myShots[i];sh.life+=dt;sh.m.position.addScaledVector(sh.v,dt);let hit=false;
         for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(sh.m.position.distanceTo(f.m.position)<3.4){damageFoe(f,sh.dmg);hit=true;break;}}
         if(!hit)for(const so of soldiers){if(sh.m.position.distanceTo(so.m.position.clone().setY(1))<2.2){damageSoldier(so,sh.dmg);hit=true;break;}}
         if(!hit&&sh.m.position.y<.3){for(const so of soldiers.slice())if(Math.hypot(so.m.position.x-sh.m.position.x,so.m.position.z-sh.m.position.z)<4)damageSoldier(so,sh.dmg*.5);hit=true;}
-        if(hit||sh.life>1.6){sc.remove(sh.m);myShots.splice(i,1);}}
+        if(hit||sh.life>1.6){fxExplode(sh.m.position,sh.col,hit?2.2:.8);sc.remove(sh.m);myShots.splice(i,1);}}
       // falling bodies (dropped riders, crates, the scout)
       for(let i=bodies.length-1;i>=0;i--){const b=bodies[i];
         if(b.chute)b.m.position.y-=4*dt;else{b.vy-=22*dt;b.m.position.y+=b.vy*dt;if(b.canChute&&b.m.position.y<=b.openH){b.chute=true;b.canopy=makeCanopy();b.m.add(b.canopy);}}
@@ -476,10 +476,10 @@ function buildPatrol(cfg){
             else{soldiers.push({m:b.m,hp,cd:1});toast(dmg>0?`The rider took ${Math.round(dmg)} fall damage and fights on below.`:'The rider pulled the chute in time and fights on below.');}}
           else b.q.state='ground';}}
       // unseated riders fight on foot
-      for(const so of soldiers){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);
+      for(const so of soldiers){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);if(!so.dummy)enemyAnim(so.m,dt);
         if(P.mode!=='foot'||so.dummy||rg.passive)continue;const dx=P.x-so.m.position.x,dz=P.z-so.m.position.z,d=Math.hypot(dx,dz)||1e-3;
         if(d<40&&d>1.3){so.m.position.x+=dx/d*4.5*dt;so.m.position.z+=dz/d*4.5*dt;so.m.rotation.y=Math.atan2(dx,dz);}
-        if(d<1.8&&so.cd<=0){hurt((so.dmg||7)*DIFF,so.src||'player-melee');so.cd=1.1;}}
+        if(d<1.8&&so.cd<=0){enemyStrike(so.m);hurt((so.dmg||7)*DIFF,so.src||'player-melee');so.cd=1.1;}}
       // objective
       if(cfg.tut){tutTick(dt);return;}
       if(cfg.range){rgTick(dt);return;}
