@@ -10,10 +10,11 @@ const STAM={breath:18,bite:8,grab:10,dive:12,diveSec:10,takeoff:10,fly:1.2,landR
 //   grab: enemy grab cooldown multiplier · free/pull: keys and seconds to break free / to rip a rider off
 //   (grab prompts are always 4 keys; difficulty changes only the time)
 //   mul: reward multiplier · high: 3% Legendary scroll chance on a win instead of 1%
+//   archers / shields: ground guards posted around the crates and the scout
 const PATROL_DIFFS={
-  easy:  {name:'Easy',  riders:3,together:1,D:.75,grab:1.5,freeKeys:4,freeTime:4.2,pullKeys:4,pullTime:3.2,mul:.6,high:false},
-  medium:{name:'Medium',riders:4,together:2,D:1,  grab:1,  freeKeys:4,freeTime:3.4,pullKeys:4,pullTime:2.6,mul:1, high:false},
-  hard:  {name:'Hard',  riders:6,together:3,D:1.5,grab:.7, freeKeys:4,freeTime:2.8,pullKeys:4,pullTime:2.2,mul:1.6,high:true},
+  easy:  {name:'Easy',  riders:3,together:1,D:.75,grab:1.5,freeKeys:4,freeTime:4.2,pullKeys:4,pullTime:3.2,mul:.6,high:false,archers:1,shields:0},
+  medium:{name:'Medium',riders:4,together:2,D:1,  grab:1,  freeKeys:4,freeTime:3.4,pullKeys:4,pullTime:2.6,mul:1, high:false,archers:2,shields:1},
+  hard:  {name:'Hard',  riders:6,together:3,D:1.5,grab:.7, freeKeys:4,freeTime:2.8,pullKeys:4,pullTime:2.2,mul:1.6,high:true,archers:3,shields:2},
 };
 // Both grab prompts use the movement keys. Arrow keys count as their WASD match.
 const QTE_KEYS=['KeyW','KeyA','KeyS','KeyD'];
@@ -59,7 +60,14 @@ function buildPatrol(cfg){
   if(first)spawnDragon(first,0,GY,82,'idle');
 
   // enemies
-  const foes=[],soldiers=[],bodies=[],shots=[],myShots=[];
+  const foes=[],soldiers=[],bodies=[],shots=[],myShots=[],eArrows=[];// eArrows: arrows shot by enemy archers
+  // ground guards: archers and shield-bearers posted around the crates and the scout (not in the tutorial or range)
+  function makeGuard(kind,x,z){const so=kind==='archer'?{m:makeArcher(),hp:Math.round(40*DIFF),cd:1+Math.random()*2,dmg:6,kind:'archer'}
+      :{m:makeShieldbearer(),hp:Math.round(120*DIFF),cd:1.4,dmg:10,kind:'shield',speed:3.3};
+    so.post={x,z};so.m.position.set(x,0,z);so.m.rotation.y=Math.random()*6;sc.add(so.m);soldiers.push(so);return so;}
+  if(!cfg.tut&&!cfg.range){const spots=pickups.map(q=>q.m.position);let n=0;
+    const place=kind=>{const c=spots[n++%spots.length],a=Math.random()*Math.PI*2,r=5+Math.random()*4;makeGuard(kind,c.x+Math.cos(a)*r,c.z+Math.sin(a)*r);};
+    for(let i=0;i<PT.archers;i++)place('archer');for(let i=0;i<PT.shields;i++)place('shield');}
   let spawned=0,unseated=0,delivered=0,scoutSaved=false,held=null,struggle=null,qte=null,captor=null,carryT=0,breathCD=0,biteCD=0,won=false;
   function spawnFoe(){spawned++;const T=cfg.tut||cfg.range,a=T?rnd(0,Math.PI*2):rnd(-1,1)+Math.PI,r=T?rnd(45,60):rnd(90,120),m=makeDragon(0x5c3a5e,.95),o=T?playerPos():new THREE.Vector3();
     m.position.set(o.x+Math.sin(a)*r,rnd(22,34),o.z+Math.cos(a)*r);sc.add(m);
@@ -200,13 +208,19 @@ function buildPatrol(cfg){
       if(f.hasRider){f.hasRider=false;unseated++;f.m.remove(f.rider);f.rider.scale.setScalar(1);f.rider.position.copy(f.m.position).add(new THREE.Vector3(0,1,0));sc.add(f.rider);
         bodies.push({m:f.rider,vy:3,dropH:f.rider.position.y,openH:Math.min(f.rider.position.y,rnd(4,20)),canChute:true,kind:'rider',hp:60,enemy:true});
         toast(`Enemy dragon downed. Its rider bailed out (${unseated}/${TOTAL}).`,'good');checkSpawn();checkWin();}}}
-  function damageSoldier(so,n){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}so.hp-=n;so.m.position.y=.3;so.m.userData.flash=.15;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast('Enemy soldier defeated.','good');}}
+  // src: 'melee' (your weapon), 'arrow' (your bow), or anything else (dragon, spell, squire)
+  let shieldTip=false;
+  function damageSoldier(so,n,src){if(so.tut&&tf.blockLock&&!TUTF.blocked&&wType()!=='bow'){toast('Block one of their strikes first: hold the right mouse button.');return;}if(so.dummy){rgHit(n);so.m.position.y=.25;return;}
+    if(shieldBlocks(so,src,P.x,P.z)){n*=SHIELD_KEEP;if(typeof fxSparks==='function')fxSparks(so.m.position.clone().setY(1.3),0xffe0a0,10);
+      if(!shieldTip){shieldTip=true;toast('The tower shield stops blows from the front. Get round to the side or behind, or use your dragon.');}}
+    if(so.kind==='brute')n*=bruteMul(so);
+    so.hp-=n;so.m.position.y=.3;so.m.userData.flash=.15;if(so.hp<=0){sc.remove(so.m);soldiers.splice(soldiers.indexOf(so),1);toast(`${{archer:'Enemy archer',shield:'Shield-bearer',brute:'Brute'}[so.kind]||'Enemy soldier'} defeated.`,'good');}}
   function bite(){if(biteCD>0||!R)return;const ds=DS[R.d.id];if(R.state==='forced'||R.state==='landing')return;
     if(ds.st<STAM.bite){toast('Not enough stamina to bite.','bad');return;}
     ds.st-=STAM.bite;biteCD=.6;dragonBite(R.m);const head=R.pos.clone().addScaledVector(fwd3(),3),atk=dragonPower(R.d);
     for(const f of foes){if(f.state==='down'||f.state==='flee')continue;if(f.m.position.distanceTo(head)<6.5){tf.bite=true;damageFoe(f,atk*1.4);return;}}
     for(const so of soldiers){if(so.m.position.clone().setY(so.m.position.y+1).distanceTo(head)<5){damageSoldier(so,atk*1.5);return;}}}
-  function footStrike(dmg){for(const so of soldiers.slice()){const d=Math.hypot(so.m.position.x-P.x,so.m.position.z-P.z);if(d<3.2&&facing(so.m.position.x,so.m.position.z)>.3)damageSoldier(so,dmg);}}
+  function footStrike(dmg){for(const so of soldiers.slice()){const d=Math.hypot(so.m.position.x-P.x,so.m.position.z-P.z);if(d<3.2&&facing(so.m.position.x,so.m.position.z)>.3)damageSoldier(so,dmg,'melee');}}
   function shootAt(f,tgt){const from=f.m.position.clone().add(new THREE.Vector3(0,.6,0)),v=tgt.clone().sub(from).normalize().multiplyScalar(28);
     const m=mesh(new THREE.SphereGeometry(.5,10,8),new THREE.MeshStandardMaterial({color:0xb05cff,emissive:0x8a3cff,emissiveIntensity:1.5}));m.position.copy(from);sc.add(m);dragonBreathe(f.m,.5);fxFireball(m,0xb05cff,.9);shots.push({m,v,life:0,dmg:cfg.tut?3:11*DIFF});}
 
@@ -310,13 +324,16 @@ function buildPatrol(cfg){
     critter:{name:'Critter',desc:'Weak and quick. Bites for a little damage.',make:()=>({m:makeCritter(0xe2683a),hp:30,cd:1,dmg:4,src:'creature'})},
     soldier:{name:'Soldier',desc:'An enemy foot soldier. Blocking (hold right mouse) cuts his strikes by 90%.',make:()=>({m:makeSoldier(),hp:60,cd:1.2})},
     knight:{name:'Armored knight',desc:'Tough and hits hard. Good for testing block, salves and Dragon Power.',make:()=>({m:makeKnight(),hp:200,cd:1.4,dmg:13})},
+    archer:{name:'Archer',desc:'Keeps its distance and shoots arrows you can dodge. Close in fast.',make:()=>({m:makeArcher(),hp:40,cd:2,dmg:6,kind:'archer'})},
+    shield:{name:'Shield-bearer',desc:'Blocks blows and arrows from the front. Hit it from the side or behind, or use your dragon.',make:()=>({m:makeShieldbearer(),hp:120,cd:1.4,dmg:10,kind:'shield',speed:3.3})},
+    brute:{name:'Brute',desc:'Paws the ground, then charges. Sidestep the charge and it is dazed, taking double damage.',make:()=>({m:makeBrute(0x8a5a3a),hp:180,cd:2,dmg:18,kind:'brute',src:'creature'})},
     rider:{name:'Enemy rider dragon',desc:'Flies, spits fire and can snatch you off your dragon. Unseat it and the rider drops to fight on foot.'},
   };
   // ground enemies line up on the field in front of the camp, five to a row
   function rgSpawn(type){if(type==='rider'){spawnFoe();return;}
     const k=soldiers.filter(s=>s.rg).length,so=RG_ENEMIES[type].make();so.rg=type;
     so.m.position.set(((k%5)-2)*3.2,0,70-Math.floor(k/5)*3.2);so.m.rotation.y=0;sc.add(so.m);soldiers.push(so);}
-  function rgClear(){for(const so of soldiers)sc.remove(so.m);soldiers.length=0;for(const f of foes)sc.remove(f.m);foes.length=0;
+  function rgClear(){for(const so of soldiers)sc.remove(so.m);soldiers.length=0;for(const a of eArrows)sc.remove(a.m);eArrows.length=0;for(const f of foes)sc.remove(f.m);foes.length=0;
     for(const b of bodies)sc.remove(b.m);bodies.length=0;struggle=null;if(qte){qte=null;renderQTE();}
     if(captor){captor=null;if(P.mode==='grabbed'){P.mode='falling';P.vy=0;P.dropH=P.y;P.openH=null;}}}
   function rgDragon(d){if(P.mode!=='foot'){toast('Use the tablets on foot.');return;}
@@ -383,7 +400,7 @@ function buildPatrol(cfg){
       interact.push({x,z:z+.6,r:3,enabled:()=>P.mode==='foot',label:()=>`Use the ${nm} tablet`,action:()=>openPanel(panel)});});}
 
   return{kind:'patrol',tut:!!cfg.tut,range:!!cfg.range,rangeAct,scene:sc,colliders,interact,radius:RAD,move,
-    arrowTargets(){const t=soldiers.map(so=>({x:so.m.position.x,z:so.m.position.z,y:so.m.position.y,h:2,r:.9,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d);}}));
+    arrowTargets(){const t=soldiers.map(so=>({x:so.m.position.x,z:so.m.position.z,y:so.m.position.y,h:2,r:.9,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d,'arrow');}}));
       for(const f of foes)if(f.state!=='down')t.push({x:f.m.position.x,z:f.m.position.z,y:f.m.position.y-1.6,h:3.2,r:2.4,hit:d=>damageFoe(f,d)});return t;},
     scrollTargets(){return soldiers.filter(so=>so.m.position.y<.5).map(so=>({x:so.m.position.x,z:so.m.position.z,r:1.1,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d);}}));},
     squireTargets(){return soldiers.filter(so=>so.m.position.y<.5&&!so.dummy).map(so=>({x:so.m.position.x,z:so.m.position.z,r:1.1,hit:d=>{if(soldiers.includes(so))damageSoldier(so,d);}}));},
@@ -476,6 +493,10 @@ function buildPatrol(cfg){
         f.m.lookAt(tgt.x,f.m.position.y,tgt.z);
         if(f.fireCD<=0&&f.m.position.distanceTo(tgt)<70&&P.mode!=='grabbed'){f.fireCD=rnd(2.2,3.6)/Math.sqrt(DIFF);shootAt(f,tgt);}
         if(f.grabCD<=0&&P.mode==='mounted'&&R&&R.state==='flying'&&!qte&&!struggle&&f.m.position.distanceTo(tgt)<30&&!foes.some(o=>['swoop','hook','carry'].includes(o.state))){f.state='swoop';f.t=0;}}
+      // enemy archers' arrows: hit you on foot or your dragon in the air
+      enemyArrowsUpdate(sc,eArrows,dt,(pos,dmg)=>{
+        if(P.mode==='mounted'&&R){if(pos.distanceTo(R.pos)<2.6){dragonHurt(dmg);return true;}return false;}
+        if(P.mode==='foot'&&Math.hypot(pos.x-P.x,pos.z-P.z)<.9&&pos.y>P.y&&pos.y<P.y+2){hurt(dmg,'projectile');return true;}return false;});
       // enemy fire
       for(let i=shots.length-1;i>=0;i--){const sh=shots[i];sh.life+=dt;sh.m.position.addScaledVector(sh.v,dt);let hit=false;
         if(P.mode==='mounted'&&R){if(sh.m.position.distanceTo(R.pos)<2.8){dragonHurt(sh.dmg);hit=true;}}
@@ -496,9 +517,19 @@ function buildPatrol(cfg){
             else{soldiers.push({m:b.m,hp,cd:1});toast(dmg>0?`The rider took ${Math.round(dmg)} fall damage and fights on below.`:'The rider pulled the chute in time and fights on below.');}}
           else b.q.state='ground';}}
       // unseated riders fight on foot
-      for(const so of soldiers){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);if(!so.dummy)enemyAnim(so.m,dt);
-        if(P.mode!=='foot'||so.dummy||rg.passive)continue;const dx=P.x-so.m.position.x,dz=P.z-so.m.position.z,d=Math.hypot(dx,dz)||1e-3;
-        if(d<40&&d>1.3){so.m.position.x+=dx/d*4.5*dt;so.m.position.z+=dz/d*4.5*dt;so.m.rotation.y=Math.atan2(dx,dz);}
+      // archers shoot at you on foot, or at your dragon when it flies low; brutes charge (systems/enemy-ai.js)
+      const onFoot=P.mode==='foot',lowDragon=P.mode==='mounted'&&R&&R.pos.y<26;
+      for(const so of soldiers.slice()){so.cd-=dt;so.m.position.y=Math.max(0,so.m.position.y-dt);if(!so.dummy)enemyAnim(so.m,dt);
+        if(so.dummy)continue;
+        if(so.kind==='archer'){const tgt=rg.passive?null:onFoot?{x:P.x,y:P.y+1.2,z:P.z}:lowDragon?{x:R.pos.x,y:R.pos.y,z:R.pos.z}:null;
+          if(tgt&&so.post&&Math.hypot(tgt.x-so.post.x,tgt.z-so.post.z)>45)archerThink(so,dt,null,null);
+          else archerThink(so,dt,tgt,(from,to)=>enemyArrow(sc,eArrows,from,to,so.dmg*DIFF));continue;}
+        if(so.kind==='brute'){if(onFoot&&!rg.passive)bruteThink(so,dt,P.x,P.z,(n,ux,uz)=>{hurt(n*DIFF,'creature');P.x+=ux*3;P.z+=uz*3;hurtA=Math.min(.8,hurtA+.3);},RAD);continue;}
+        if(!onFoot||rg.passive)continue;let dx=P.x-so.m.position.x,dz=P.z-so.m.position.z,d=Math.hypot(dx,dz)||1e-3;
+        if(so.post&&Math.hypot(P.x-so.post.x,P.z-so.post.z)>28){dx=so.post.x-so.m.position.x;dz=so.post.z-so.m.position.z;const dp=Math.hypot(dx,dz);// guards don't stray far from their post
+          if(dp>1){so.m.position.x+=dx/dp*3*dt;so.m.position.z+=dz/dp*3*dt;so.m.rotation.y=Math.atan2(dx,dz);}continue;}
+        const sp=so.speed||4.5;
+        if(d<40&&d>1.3){so.m.position.x+=dx/d*sp*dt;so.m.position.z+=dz/d*sp*dt;so.m.rotation.y=Math.atan2(dx,dz);}
         if(d<1.8&&so.cd<=0){enemyStrike(so.m);hurt((so.dmg||7)*DIFF,so.src||'player-melee');so.cd=1.1;}}
       // objective
       if(cfg.tut){tutTick(dt);return;}

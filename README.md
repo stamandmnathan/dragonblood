@@ -18,7 +18,7 @@ Open `index.html` in a modern browser. The first load needs an internet connecti
 | `js/engine/` | three.js renderer, camera, dragon and weapon models, animation and effects (`fx.js`, Legendary spell effects in `spell-fx.js`) |
 | `js/player/` | Player movement, combat and arrows |
 | `js/scenes/` | One file per scene: hub, egg hunt, feed, Sky Patrol, tutorial, Holy Tree trial; `kingdom-stages.js` builds the kingdom for each stage of growth |
-| `js/systems/` | Missions, seasons, holy bark, scrolls, Dragon Power, squire |
+| `js/systems/` | Missions, seasons, holy bark, scrolls, Dragon Power, squire, enemy behaviour (`enemy-ai.js`) |
 | `js/ui/` | Panels, HUD, input, loadout and title screen |
 | `js/main.js` | Main loop and boot (loads last) |
 

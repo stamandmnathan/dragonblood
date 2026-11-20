@@ -1,7 +1,8 @@
 // ========================================================================
 // DragonBlood · Enemy models
-// Enemy soldiers, armored knights, dragon riders, nest critters and corrupted
-// husks, plus their walk and attack animation (enemyAnim / enemyStrike).
+// Enemy soldiers, armored knights, dragon riders, archers, shield-bearers,
+// brutes, nest critters and corrupted husks, plus their walk and attack
+// animation (enemyAnim / enemyStrike). Their behaviour is in systems/enemy-ai.js.
 // ========================================================================
 'use strict';
 // Rules the scenes rely on (keep these when editing a model):
@@ -147,6 +148,77 @@ function makeHusk(color){const g=new THREE.Group(),V=(x,y,z)=>new THREE.Vector3(
   const armL=arm(-1),armR=arm(1);
   g.userData={mats:[bark,moss],flash:0,legs,arms:[armL,armR],armR,head,root,walk:0};return g;}
 
+// Enemy archer: hooded green cloak, leather, longbow in the left hand, quiver on the back.
+// Keeps its distance and shoots (systems/enemy-ai.js); the bow arm comes up while drawing.
+function makeArcher(){const h=makeHumanoid({body:0x5a4a32,cloth:0x3a4a2a,metal:false,emblem:null});
+  const{g,root,head,wpn,shield,dark,mats,V}=h;
+  const hood=M(0x2e3c22,{roughness:.95,side:THREE.DoubleSide});mats.push(hood);
+  head.add(mesh(new THREE.SphereGeometry(.2,10,7,0,Math.PI*2,0,Math.PI*.62),hood,0,.02,-.01));
+  const tip=mesh(new THREE.ConeGeometry(.12,.28,6),hood,0,.1,-.2);tip.rotation.x=-1.1;head.add(tip);
+  head.add(mesh(new THREE.BoxGeometry(.26,.08,.06),dark,0,-.06,.15));// face scarf
+  const cloak=mesh(new THREE.BoxGeometry(.55,1.1,.03),hood,0,1.05,-.27);cloak.rotation.x=.1;root.add(cloak);
+  // quiver with fletched arrows
+  const q=mesh(new THREE.CylinderGeometry(.09,.08,.62,8),M(0x5a3d26),.14,1.32,-.3);q.rotation.z=-.35;root.add(q);
+  for(let i=0;i<4;i++){const a=mesh(new THREE.ConeGeometry(.03,.1,3),M(0xb03a2a,{side:THREE.DoubleSide}),.25+i*.025,1.66+i*.01,-.31+(i%2)*.04);a.rotation.z=-.35;root.add(a);}
+  // longbow in the left hand. In the hand's frame, z runs along the bow (it is vertical once the arm
+  // comes up to aim) and -y points at the target, so the limbs curve back toward +y where the string is.
+  const limb=new THREE.CatmullRomCurve3([V(0,.22,-.62),V(0,.06,-.36),V(0,0,0),V(0,.06,.36),V(0,.22,.62)]);
+  shield.add(new THREE.Mesh(new THREE.TubeGeometry(limb,16,.025,5,false),M(0x6a4a2a,{roughness:.6})));
+  const str=mesh(new THREE.CylinderGeometry(.004,.004,1.24,3),M(0xe8e0d0),0,.22,0);str.rotation.x=Math.PI/2;shield.add(str);// string
+  const grp=mesh(new THREE.CylinderGeometry(.035,.035,.16,6),M(0x2b1d16),0,0,0);grp.rotation.x=Math.PI/2;shield.add(grp);// grip
+  // arrow in the right hand, pointing along the arm (forward once drawn)
+  wpn.add(mesh(new THREE.CylinderGeometry(.012,.012,.7,4),M(0x8a6a48),0,-.3,0));const tipA=mesh(new THREE.ConeGeometry(.03,.09,4),M(0xb8b8c0,{metalness:.7}),0,-.68,0);tipA.rotation.x=Math.PI;wpn.add(tipA);
+  g.userData.atkStyle='draw';return g;}
+
+// Shield-bearer: plate over a blue tabard, barbute helm, a tall tower shield held in front, a spear.
+// Blocks blows and arrows from the front (see shieldBlocks in systems/enemy-ai.js).
+function makeShieldbearer(){const h=makeHumanoid({body:0x6a6e78,cloth:0x2a4a6a,metal:true,emblem:0xc9a35a,trim:0xc9a35a});
+  const{g,head,wpn,shield,trim,mats}=h;
+  const helm=M(0x8a8e98,{metalness:.8,roughness:.3});mats.push(helm);
+  head.add(mesh(new THREE.CylinderGeometry(.2,.2,.34,10),helm,0,.03,0));
+  head.add(mesh(new THREE.BoxGeometry(.05,.22,.04),M(0x111111),0,0,.19));head.add(mesh(new THREE.BoxGeometry(.22,.05,.04),M(0x111111),0,.05,.19));// T-slit
+  head.add(mesh(new THREE.SphereGeometry(.2,10,6,0,Math.PI*2,0,Math.PI/2),helm,0,.19,0));
+  // spear: held low, the shaft runs forward from the hand (hand frame +z = forward while the arm hangs)
+  const sh=mesh(new THREE.CylinderGeometry(.025,.025,1.9,6),M(0x5a3d26),0,0,.55);sh.rotation.x=Math.PI/2;wpn.add(sh);
+  const hd=mesh(new THREE.ConeGeometry(.06,.3,4),M(0xc8ccd4,{metalness:.8,roughness:.3}),0,0,1.6);hd.rotation.x=Math.PI/2;wpn.add(hd);
+  // tower shield: the shield arm is raised forward (see enemyAnim), which turns the hand's z axis to
+  // world up and -y to world forward, so the board lies in the hand's x/z plane facing -y.
+  const tw=M(0x8a2f2f,{roughness:.7});mats.push(tw);
+  shield.add(mesh(new THREE.BoxGeometry(.8,.07,1.35),tw,.24,-.12,-.18));
+  for(const z of[.5,-.86])shield.add(mesh(new THREE.BoxGeometry(.86,.09,.06),trim,.24,-.13,z));
+  for(const sx of[-.16,.64])shield.add(mesh(new THREE.BoxGeometry(.05,.09,1.35),trim,sx,-.13,-.18));
+  shield.add(mesh(new THREE.SphereGeometry(.1,8,6),trim,.24,-.17,-.12));
+  g.userData.atkStyle='thrust';g.userData.guard=true;g.scale.setScalar(1.12);return g;}
+
+// Brute: a hulking horned beast tinted by element (Dragon Feed missions, practice range).
+// Paws the ground and charges; misses leave it dazed (systems/enemy-ai.js).
+function makeBrute(color){const g=new THREE.Group(),V=(x,y,z)=>new THREE.Vector3(x,y,z);
+  const c=new THREE.Color(color||0x8a5a3a);
+  const hide=M(c.clone().multiplyScalar(.38),{roughness:.85}),plate=M(c.clone().multiplyScalar(.6),{roughness:.4,metalness:.25});
+  const horn=M(0xe0d4b8,{roughness:.5}),hoof=M(0x1e1814,{roughness:.6});
+  const eyeM=new THREE.MeshBasicMaterial({color:0xffd27a});
+  const root=new THREE.Group();g.add(root);
+  // body: deep chest, hump, haunches, armored back plates
+  const body=mesh(new THREE.SphereGeometry(1,12,9),hide,0,1.35,0);body.scale.set(.95,.8,1.45);root.add(body);
+  const hump=mesh(new THREE.SphereGeometry(.62,10,8),hide,0,1.82,.6);hump.scale.set(1.05,.75,1.1);root.add(hump);// shoulder hump
+  root.add(mesh(new THREE.SphereGeometry(.7,10,8),hide,0,1.2,-1));
+  for(let i=0;i<5;i++){const pl=mesh(new THREE.BoxGeometry(.9-i*.08,.16,.55),plate,0,2.15-i*.12,.7-i*.5);pl.rotation.x=.25-i*.08;root.add(pl);
+    root.add(dSpike(V(0,2.25-i*.12,.7-i*.5),V(0,1,-.3),.08,.3,horn,4));}
+  // head: low and heavy, two big forward horns, tusks, glowing eyes
+  const head=new THREE.Group();head.position.set(0,1.25,1.45);root.add(head);
+  head.add(mesh(new THREE.BoxGeometry(.75,.7,.85),hide,0,0,.25));
+  head.add(mesh(new THREE.BoxGeometry(.55,.4,.4),hide,0,-.18,.75));// snout
+  for(const s of[-1,1]){dHorn(head,V(s*.3,.25,.25),V(s*.9,.5,.6),.3,.12,1.1,4,horn);
+    head.add(dSpike(V(s*.18,-.3,.85),V(s*.2,.9,.5),.05,.3,horn,4));// tusks
+    head.add(mesh(new THREE.SphereGeometry(.07,6,5),eyeM,s*.3,.12,.68));}
+  // legs: four thick legs on hip pivots, with hooves (feet at y=0)
+  const legs=[[-.6,.85],[.6,.85],[-.6,-.95],[.6,-.95]].map(([x,z])=>{const l=new THREE.Group();l.position.set(x,1.1,z);root.add(l);
+    l.add(dBone(V(0,0,0),V(0,-.6,.05),.28,.22,hide,7));l.add(dBone(V(0,-.6,.05),V(0,-1.02,0),.2,.17,hide,7));
+    l.add(mesh(new THREE.CylinderGeometry(.2,.24,.14,8),hoof,0,-1.04,.02));return l;});
+  // tail
+  const tail=dBone(V(0,1.4,-1.6),V(0,.9,-2.3),.1,.04,hide,5);root.add(tail);root.add(dSpike(V(0,.9,-2.3),V(0,-.6,-1),.08,.25,horn,4));
+  g.userData={mats:[hide,plate],flash:0,legs,head,root,walk:0,quad:true,eyeM};return g;}
+
 // --- animation
 // Walk cycle from distance moved; attack swing after enemyStrike(); hit flash.
 function enemyAnim(m,dt){const u=m.userData;if(!u.root)return;tickFlash(m,dt);
@@ -155,6 +227,14 @@ function enemyAnim(m,dt){const u=m.userData;if(!u.root)return;tickFlash(m,dt);
   const speed=dt>0?d/dt:0;u.mv+=((speed>.3?1:0)-u.mv)*Math.min(1,dt*8);
   u.walk+=d*(u.crawl?9:3.2);const w=u.walk,k=u.mv;
   if(u.atk>0)u.atk=Math.max(0,u.atk-dt);const pr=u.atk>0?1-u.atk/.35:0,a=u.atk>0?Math.sin(pr*Math.PI):0;// pr: 0..1 through the swing
+  if(u.quad){// brute: diagonal gait; paws and lowers its head while winding up; eyes burn red; sways when dazed
+    u.walk+=d*.6;const g2=u.walk*1.2,run=u.charge?1.6:1;
+    u.legs.forEach((l,i)=>{l.rotation.x=Math.sin(g2+((i===0||i===3)?0:Math.PI))*.45*k*run;});
+    if(u.wind){u.legs[0].rotation.x=Math.sin(performance.now()*.025)*.6;}
+    const tH=u.wind?.4:u.charge?.3:u.dazed?-.2:0;u.head.rotation.x+=(tH-u.head.rotation.x)*Math.min(1,dt*8);
+    u.head.rotation.z=u.dazed?Math.sin(performance.now()*.006)*.25:0;u.root.rotation.z=u.dazed?Math.sin(performance.now()*.004)*.05:0;
+    u.eyeM.color.setHex(u.wind||u.charge?0xff3a1a:0xffd27a);
+    u.root.position.y=Math.abs(Math.sin(g2))*.06*k*run;if(a>0)u.head.rotation.x=-.4*a;return;}
   if(u.crawl){// critter: alternating leg ripples, mandibles snap
     u.legs.forEach((l,i)=>{const ph=w+(i%3)*2.1+(i<3?0:Math.PI);l.rotation.y=Math.sin(ph)*.45*k;l.rotation.z=Math.max(0,Math.cos(ph))*.25*k*(i<3?1:-1);});
     u.mand.forEach((md,i)=>{md.rotation.y=(i?-1:1)*(.15+a*.7);});
@@ -163,7 +243,11 @@ function enemyAnim(m,dt){const u=m.userData;if(!u.root)return;tickFlash(m,dt);
   u.legs.forEach((l,i)=>{l.rotation.x=Math.sin(w+(i?Math.PI:0))*.6*k;});
   u.arms.forEach((ar,i)=>{ar.rotation.x=Math.sin(w+(i?0:Math.PI))*.4*k;});
   u.root.position.y=Math.abs(Math.sin(w))*.05*k;
-  if(u.atk>0){u.armR.rotation.x=pr<.35?-2.6*pr/.35:-2.6+(pr-.35)/.65*2;u.armR.rotation.z=-.3*a;}else u.armR.rotation.z=0;// raise overhead, then chop forward
+  if(u.guard)u.arms[0].rotation.x=-1.5;// shield-bearer holds the tower shield up in front
+  if(u.atkStyle==='draw'&&u.drawing){u.arms[0].rotation.x=-1.5;u.arms[1].rotation.x=-1.35;u.arms[1].rotation.z=.5;}// archer: bow up, string pulled
+  else if(u.atkStyle==='thrust'){u.armR.position.z=u.atk>0?(pr<.35?-.25*pr/.35:-.25+.75*(pr-.35)/.65):0;if(u.atk>0)u.armR.rotation.x=-.25;}// spear: draw back, then stab forward
+  else if(u.atk>0&&u.atkStyle!=='draw'){u.armR.rotation.x=pr<.35?-2.6*pr/.35:-2.6+(pr-.35)/.65*2;u.armR.rotation.z=-.3*a;}// raise overhead, then chop forward
+  else u.armR.rotation.z=0;
   if(u.head)u.head.rotation.y=Math.sin(performance.now()*.0012+p.x)*.25*(1-k);}
 // Start an attack swing (call when the enemy lands a hit).
 function enemyStrike(m){if(m&&m.userData)m.userData.atk=.35;}
