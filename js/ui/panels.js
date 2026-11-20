@@ -84,17 +84,18 @@ const P_roost={eyebrow:()=>'Raising and imprinting',title:()=>'Dragon Roost',liv
       <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap">${btn('feed',d.id,`Feed ${E.food}`,grown||S.food[d.element]<1)}${btn('bond',d.id,bondLeft>0?`Bond in ${Math.ceil(bondLeft)}s`:'Bond (+3%)',bondLeft>0||d.imprint>=100)}${d.id===S.active?'<span class="tag">Active</span>':btn('setActive',d.id,'Make active')}</div></div>`;}
   return h;}};
 
-const MP={party:1,high:false,el:'fire',trial:'easy',trialEl:'fire'};
+const MP={party:1,high:false,el:'fire',trial:'easy',trialEl:'fire',patrol:'medium'};
 const P_gate={eyebrow:()=>'Mission board',title:()=>'Mission Gate',render(){
   let block='';if(S.carriedEgg)block='You are carrying an egg. Take it to the Hatchery first.';
   const eggBlock=block||(S.hatchery?'Your hatchery is occupied. An egg would not survive the trip home. Hatch the current egg first.':'');
   const odds=RARITY.map((r,i)=>{const F=RARITY.slice(0,i+1).reduce((a,x)=>a+x.w,0)/100,Fp=RARITY.slice(0,i).reduce((a,x)=>a+x.w,0)/100;const p=MP.high?F*F-Fp*Fp:r.w/100;return `<tr><td style="color:${r.css}">${r.name}</td><td>${(p*100).toFixed(1)}%</td></tr>`;}).join('');
   const lvl=1+Math.floor((S.playerLvl-1)/2)+(MP.high?3:0);
   const grownAny=S.dragons.some(d=>d.growth>=100);
-  let h=`<p class="note">${sqAway()?`${S.squire.name} is away on an expedition and won't join this mission.`:`${S.squire.name} (squire level ${S.squire.lvl}) goes with you on any mission and earns XP from it.`}</p><p class="section-h">Dragon mission · Sky Patrol</p><p class="note">Ride your dragon against rival riders. Unseat 4 riders by grabbing them off their dragons or downing them, deliver 2 supply crates, and carry a stranded scout to the war camp. Every riding action uses stamina, and flying slowly drains it. <b>No time limit.</b> If you fall, you are sent back to the kingdom.</p>
+  let h=`<p class="note">${sqAway()?`${S.squire.name} is away on an expedition and won't join this mission.`:`${S.squire.name} (squire level ${S.squire.lvl}) goes with you on any mission and earns XP from it.`}</p><p class="section-h">Dragon mission · Sky Patrol</p><p class="note">Ride your dragon against rival riders. Unseat the riders by grabbing them off their dragons or downing them, deliver 2 supply crates, and carry a stranded scout to the war camp. Every riding action uses stamina, and flying slowly drains it. <b>No time limit.</b> If you fall, you are sent back to the kingdom.</p>
   ${grownAny?'':'<p class="note" style="color:var(--ember)">Needs at least one fully raised dragon.</p>'}
   <p class="note">One dragon flies as your mount (your active grown dragon). When it tires it must land and recover.</p>
-  ${btn('startPatrol',null,'Start Sky Patrol',!grownAny||!!block,'primary')}
+  <p class="note">Difficulty</p><div class="grid2">${Object.entries(PATROL_DIFFS).map(([id,D])=>`<button type="button" class="pick" data-act="patrolDiff" data-arg="${id}" aria-pressed="${MP.patrol===id}"><b>${D.name}</b><span>${D.riders} riders · ${D.together} at a time · ${D.freeKeys}-key grabs · rewards ×${D.mul}</span></button>`).join('')}</div>
+  ${btn('startPatrol',null,`Start ${PATROL_DIFFS[MP.patrol].name} Sky Patrol`,!grownAny||!!block,'primary')}
   <p class="section-h" style="margin-top:22px">Practice range</p><p class="note">Try every weapon, any dragon, Legendary scrolls and Dragon Power, and spawn enemies from tablets at the camp. No rewards, no cost, no risk.</p>
   ${btn('startRange',null,'Open the practice range',!!block)}
   <p class="section-h" style="margin-top:22px">Egg hunt</p><p class="note">Kill a mother dragon on foot with weapons only. Her rarity and element are random. Difficulty scales with party size. Only the player who starts the hunt gets the egg.</p>
@@ -184,7 +185,7 @@ const P_menu={eyebrow:()=>'DragonBlood',title:()=>'Menu',render(){
   h+=ctrl('X','Dismount after you land.');
   h+=ctrl('V','Send the dragon away to rest. It recovers stamina faster and heals 15%.');
   h+='</div>';
-  h+='<p class="note">If an enemy snatches you, press the movement keys shown to break free, then Space for a parachute. Fall damage depends on height and when you open the chute. At zero stamina the dragon force-lands and needs recovery (design: 3–5 minutes; this prototype runs 6× faster). For now only your active dragon flies as a mount, so wait out its cooldown before riding again.</p>';
+  h+='<p class="note">Grabbing uses the movement keys. If an enemy snatches you, press the movement keys shown, in order, to break free, then Space for a parachute. When you grab an enemy rider (G), press the keys shown to rip them from the saddle before they wriggle free. Harder patrols show more keys and give less time. Fall damage depends on height and when you open the chute. At zero stamina the dragon force-lands and needs recovery (design: 3–5 minutes; this prototype runs 6× faster). For now only your active dragon flies as a mount, so wait out its cooldown before riding again.</p>';
 
   h+='<p class="note">Touch screens: use the stick and the round buttons. Progress saves automatically in this browser.</p>';
   if(TEST_MODE)h+='<p class="note" style="color:var(--brass)">Test mode is on: higher rider level, best gear, unlimited gold and material, one grown dragon (skipped while the tutorial runs).</p>'+row('Test: grant the relic','Skips the 0.1% search roll.','',btn('testRelic',null,'Grant relic',!!S.relic))+row('Test: end the year now','Ends the year now with the current relic standings.','',btn('testWipe',null,'Trigger wipe',false,'danger'));
@@ -220,11 +221,11 @@ const ACT={
   combineBark(a){const[e,i0]=a.split(':');const i=+i0,inv=barkInv();if(!inv[e]||i>=4||inv[e][i]<BARK_COMBINE)return;inv[e][i]-=BARK_COMBINE;inv[e][i+1]++;toast(`Combined into ${barkName(e,i+2)}.`,'good');},
   setBark(a){const[si0,e,t0]=a.split(':');const si=+si0,t=+t0,s=socketsOf(S.weapon),inv=barkInv();if(!inv[e]||!inv[e][t-1]||si>=s.length)return;if(s[si])inv[s[si].e][s[si].t-1]++;inv[e][t-1]--;s[si]={e,t};},
   removeBark(si){si=+si;const s=socketsOf(S.weapon);if(!s[si])return;barkInv()[s[si].e][s[si].t-1]++;s[si]=0;},
-  trialDiff(d){MP.trial=d;},trialEl(e){MP.trialEl=e;},startTrial(){if(S.carriedEgg)return;if(S.gold<TRIALS[MP.trial].gold){toast(`Not enough gold for a ${TRIALS[MP.trial].name} trial.`,'bad');return;}openLoadout('trial');},
+  trialDiff(d){MP.trial=d;},patrolDiff(d){if(PATROL_DIFFS[d])MP.patrol=d;},trialEl(e){MP.trialEl=e;},startTrial(){if(S.carriedEgg)return;if(S.gold<TRIALS[MP.trial].gold){toast(`Not enough gold for a ${TRIALS[MP.trial].name} trial.`,'bad');return;}openLoadout('trial');},
   bindRelic(id){S.relicDragon=+id;},startRelic(){if(!endGameReady().ok)return;openLoadout('relic');},
   testRelic(){if(!TEST_MODE)return;S.relic=true;toast('Test: relic granted.','good');},testWipe(){if(!TEST_MODE)return;checkSeason(true);},
   loTab(t){LO.tab=t;},loScroll(u){LO.scroll=u?+u:null;},loBack(){openPanel(P_gate);},
-  loBegin(){SCR.pending=LO.scroll;const k=LO.kind;if(k==='egg'){if(S.carriedEgg||S.hatchery||(MP.high&&S.holy<1))return;startEggHunt(MP.party,MP.high);}else if(k==='feed'){if(S.carriedEgg)return;startFeed(MP.el);}else if(k==='trial'){startTrial(MP.trial);}else if(k==='relic'){startRelicHunt();}else startPatrol();},
+  loBegin(){SCR.pending=LO.scroll;const k=LO.kind;if(k==='egg'){if(S.carriedEgg||S.hatchery||(MP.high&&S.holy<1))return;startEggHunt(MP.party,MP.high);}else if(k==='feed'){if(S.carriedEgg)return;startFeed(MP.el);}else if(k==='trial'){startTrial(MP.trial);}else if(k==='relic'){startRelicHunt();}else startPatrol(MP.patrol);},
   sendSq(id){const E=EXPEDITIONS.find(e=>e.id===id),q=S.squire;if(!E||q.exp||q.lvl<E.minLvl)return;q.exp={id,start:Date.now(),dur:E.secs*1000};hubDirty=true;toast(`${q.name} sets out: ${E.name}.`);},
   claimSq(){const q=S.squire;if(!q.exp||!sqExpDone())return;const E=EXPEDITIONS.find(e=>e.id===q.exp.id),mul=(1+.08*(q.lvl-1))*(q.lvl>=SQ_MAX?1.25:1);
     const g=Math.round(rnd(E.gold[0],E.gold[1])*mul),m=Math.round(rnd(E.mat[0],E.mat[1])*mul);S.gold+=g;S.material+=m;let msg=`${q.name}'s report: +${g} gold · +${m} material · +${E.xp} squire XP`;

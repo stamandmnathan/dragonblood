@@ -5,7 +5,16 @@
 // ========================================================================
 'use strict';
 const STAM={breath:18,bite:8,grab:10,dive:12,diveSec:10,takeoff:10,fly:1.2,landRegen:3,awayRegen:12};
-// Break-free prompt uses the movement keys. Arrow keys count as their WASD match.
+// Sky Patrol difficulty. Medium is the original balance.
+//   riders: riders to unseat · together: riders in the air at once · D: enemy health/damage
+//   grab: enemy grab cooldown multiplier · free/pull: keys and seconds to break free / to rip a rider off
+//   mul: reward multiplier · high: 3% Legendary scroll chance on a win instead of 1%
+const PATROL_DIFFS={
+  easy:  {name:'Easy',  riders:3,together:1,D:.75,grab:1.5,freeKeys:3,freeTime:4.2,pullKeys:3,pullTime:3.2,mul:.6,high:false},
+  medium:{name:'Medium',riders:4,together:2,D:1,  grab:1,  freeKeys:4,freeTime:3.4,pullKeys:4,pullTime:2.6,mul:1, high:false},
+  hard:  {name:'Hard',  riders:6,together:3,D:1.5,grab:.7, freeKeys:5,freeTime:2.8,pullKeys:5,pullTime:2.2,mul:1.6,high:true},
+};
+// Both grab prompts use the movement keys. Arrow keys count as their WASD match.
 const QTE_KEYS=['KeyW','KeyA','KeyS','KeyD'];
 const QTE_ALIAS={ArrowUp:'KeyW',ArrowLeft:'KeyA',ArrowDown:'KeyS',ArrowRight:'KeyD'};
 const touchHold={dive:false};
@@ -13,7 +22,8 @@ const touchHold={dive:false};
 function fallDamage(dropH,openH){if(openH==null)return Math.max(0,dropH-3)*4;return Math.max(0,(dropH-openH)-15)*1.5+(openH<8?(8-openH)*7:0);}
 function buildPatrol(cfg){
   const sc=baseScene(0x6d7f94,80,300);
-  const colliders=[],interact=[];const RAD=125,DIFF=1+.15*(cfg.lvl-1),GY=1.25,TOTAL=4;
+  const colliders=[],interact=[];const PT=PATROL_DIFFS[cfg.diff]||(cfg.tut?PATROL_DIFFS.easy:PATROL_DIFFS.medium);// tutorial: easy prompts
+  const RAD=125,DIFF=(1+.15*(cfg.lvl-1))*PT.D,GY=1.25,TOTAL=cfg.tut||cfg.range?4:PT.riders;
   const ground=mesh(new THREE.CircleGeometry(175,56),M(0x4a5a38));ground.rotation.x=-Math.PI/2;sc.add(ground);
   for(let i=0;i<46;i++){const a=i/46*Math.PI*2,h=30+Math.random()*30;sc.add(mesh(new THREE.ConeGeometry(14+Math.random()*8,h,5),M(0x3d4638),Math.sin(a)*152,h/2-1,Math.cos(a)*152));}
   const rand=rng(cfg.seed);
@@ -53,8 +63,8 @@ function buildPatrol(cfg){
   function spawnFoe(){spawned++;const T=cfg.tut||cfg.range,a=T?rnd(0,Math.PI*2):rnd(-1,1)+Math.PI,r=T?rnd(45,60):rnd(90,120),m=makeDragon(0x5c3a5e,.95),o=T?playerPos():new THREE.Vector3();
     m.position.set(o.x+Math.sin(a)*r,rnd(22,34),o.z+Math.cos(a)*r);sc.add(m);
     const rider=makeRider();rider.scale.setScalar(.75);rider.position.set(0,.75,-.3);m.add(rider);
-    const hp=cfg.tut?70:Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:cfg.tut?rnd(5,7):rnd(2.5,4.5),grabCD:cfg.tut?1e9:rnd(10,16),stun:0,t:0,hasRider:true});return foes[foes.length-1];}
-  function checkSpawn(){if(cfg.tut||cfg.range)return;const active=foes.filter(f=>f.hasRider).length;if(active<2&&spawned<TOTAL)spawnFoe();}
+    const hp=cfg.tut?70:Math.round(260*DIFF);foes.push({m,rider,hp,max:hp,state:'fly',ang:Math.random()*6,fireCD:cfg.tut?rnd(5,7):rnd(2.5,4.5),grabCD:cfg.tut?1e9:rnd(10,16)*PT.grab,stun:0,t:0,hasRider:true});return foes[foes.length-1];}
+  function checkSpawn(){if(cfg.tut||cfg.range)return;const active=foes.filter(f=>f.hasRider).length;if(active<PT.together&&spawned<TOTAL)spawnFoe();}
   if(!cfg.tut&&!cfg.range){spawnFoe();spawnFoe();}
 
   const canopy=mesh(new THREE.SphereGeometry(2.2,12,6,0,Math.PI*2,0,Math.PI/2),M(0xd9c7a0,{side:THREE.DoubleSide}),0,3.2,0);canopy.visible=false;camera.add(canopy);
@@ -66,7 +76,7 @@ function buildPatrol(cfg){
   function end(success,reason){if(missionOver)return;
     if(cfg.tut){for(const d of roster)d.cdUntil=0;finishMission({kind:'tutorial',success,reason});return;}
     for(const d of roster){const c=DS[d.id].cd;d.cdUntil=c>0?Date.now()+c*1000:0;}
-    finishMission({kind:'patrol',success,reason,cfg,unseated,delivered,scoutSaved,used:roster.filter(d=>DS[d.id].used)});}
+    finishMission({kind:'patrol',success,reason,cfg,total:TOTAL,unseated,delivered,scoutSaved,used:roster.filter(d=>DS[d.id].used)});}
 
   // ----- the rider's dragon
   function mount(){P.mode='mounted';R.state='landed';lastId=R.d.id;P.pitch=0;toast(`Mounted ${R.d.name}. R to take off.`);}
@@ -128,7 +138,7 @@ function buildPatrol(cfg){
     if(!g){toast('Nothing close enough to grab. Fly within a few metres.');return;}
     if(ds.st<STAM.grab){toast(`${R.d.name} does not have the stamina to grab.`,'bad');return;}
     ds.st-=STAM.grab;
-    if(g.kind==='rider'){struggle={foe:g.obj,t:1.6};g.obj.state='struggle';toast('You grabbed an enemy rider. They are struggling to break free...');return;}
+    if(g.kind==='rider'){startPull(g.obj);return;}
     if(g.kind==='soldier'){const so=g.obj;soldiers.splice(soldiers.indexOf(so),1);held={kind:'soldier',m:so.m,hp:so.hp};toast('Enemy soldier snatched. G to drop them from a height.');return;}
     const q=g.obj;q.state='held';held={kind:q.kind,m:q.m,q};
     toast(q.kind==='scout'?'You picked up the scout. Fly to the war camp and press G over the gold ring.':'Crate grabbed. Drop it at the war camp (G over the gold ring).');}
@@ -144,17 +154,30 @@ function buildPatrol(cfg){
     toast('Dropped. Watch how late they pull the chute.');}
   function checkWin(){if(cfg.tut||cfg.range)return;if(!won&&unseated>=TOTAL&&delivered>=2&&scoutSaved){won=true;toast('Patrol complete.','good');setTimeout(()=>end(true),900);}}
 
-  // ----- being grabbed (break-free prompt, then dropped with a parachute)
+  // ----- the grab key prompt: press the movement keys shown, in order, before the bar runs out.
+  // qte.mode 'free': an enemy grabbed you; succeed to break out of its claws and fall.
+  // qte.mode 'pull': you grabbed an enemy rider; succeed to rip them off their dragon.
+  // A wrong key starts the sequence again. Easy/Medium/Hard set the key count and time (PATROL_DIFFS).
+  const qteSeq=n=>Array.from({length:n},()=>QTE_KEYS[Math.floor(Math.random()*QTE_KEYS.length)]);
   function renderQTE(){const el=$('#qte');if(!qte){el.hidden=true;return;}el.hidden=false;
+    el.querySelector('p').textContent=qte.mode==='pull'?'Rip the rider from the saddle':'Break free from the claws';
     $('#qteKeys').innerHTML=qte.seq.map((k,i)=>`<button type="button" data-k="${k}" class="${i<qte.i?'done':i===qte.i?'next':''}">${k.slice(3)}</button>`).join('');}
   // An enemy grab is instant: you are snatched off your dragon into its claws.
   // The only way out is breaking free from the claws, which drops you from where you are.
-  function startQTE(f){qte={foe:f,seq:Array.from({length:4},()=>QTE_KEYS[Math.floor(Math.random()*QTE_KEYS.length)]),i:0,t:3.4,max:3.4};
+  function startQTE(f){qte={mode:'free',foe:f,seq:qteSeq(PT.freeKeys),i:0,t:PT.freeTime,max:PT.freeTime};
     captor=f;f.state='carry';f.ang=Math.random()*Math.PI*2;carryT=5.5;P.mode='grabbed';
     if(R){R.state='drift';R.diving=false;}renderQTE();
     toast('An enemy rider snatched you off your dragon! Press the keys to break free from its claws.','bad');}
+  // You grab an enemy rider: hold them in front of your dragon while you work the keys.
+  function startPull(f){struggle={foe:f};f.state='struggle';qte={mode:'pull',foe:f,seq:qteSeq(PT.pullKeys),i:0,t:PT.pullTime,max:PT.pullTime};
+    if(R)R.diving=false;renderQTE();toast('You grabbed an enemy rider! Press the keys to rip them from the saddle.');}
+  function pullDone(won){const f=qte.foe;qte=null;struggle=null;renderQTE();
+    if(!won){f.state='fly';f.stun=2;f.grabCD=8*PT.grab;toast('The rider broke free of your grip.','bad');return;}
+    f.hasRider=false;f.m.remove(f.rider);f.rider.scale.setScalar(1);sc.add(f.rider);f.state='flee';f.t=0;unseated++;held={kind:'rider',m:f.rider,hp:60};
+    toast(`Rider pulled off their dragon (${unseated}/${TOTAL}). Press G to drop them.`,'good');checkSpawn();checkWin();}
   function qteKey(code){code=QTE_ALIAS[code]||code;if(!qte||!QTE_KEYS.includes(code))return!!qte;
-    if(code===qte.seq[qte.i]){qte.i++;if(qte.i>=qte.seq.length){const f=qte.foe;f.state='fly';f.stun=2.5;f.grabCD=16;qte=null;renderQTE();captor=null;
+    if(code===qte.seq[qte.i]){qte.i++;if(qte.i>=qte.seq.length&&qte.mode==='pull'){pullDone(true);return true;}
+      if(qte.i>=qte.seq.length){const f=qte.foe;f.state='fly';f.stun=2.5;f.grabCD=16;qte=null;renderQTE();captor=null;
       P.mode='falling';P.vy=0;P.dropH=P.y;P.openH=null;
       toast(`You broke free from the claws at ${Math.round(P.y)} m. Open your parachute (${isTouch?'Ride':'Space'})!`,'good');return true;}}
     else qte.i=0;
@@ -246,7 +269,7 @@ function buildPatrol(cfg){
     {start:()=>{tutUnseat0=unseated;spawnFoe();spawnFoe();},t:()=>'Two weak enemy riders are flying in. Aim at one and press Q to breathe on it.',
       tick:()=>{if(!liveRiders())spawnFoe();},done:()=>tf.breath},
     {t:()=>'Fly right up to an enemy dragon and click to bite it.',tick:()=>{if(!liveRiders())spawnFoe();},done:()=>tf.bite},
-    {t:()=>`Unseat the enemy riders: bite, breathe or dive into their dragons, or fly close and press G to pull a rider off (${Math.min(2,unseated-tutUnseat0)}/2).`,
+    {t:()=>`Unseat the enemy riders: bite, breathe or dive into their dragons, or fly close and press G to grab a rider and press the keys shown to pull them off (${Math.min(2,unseated-tutUnseat0)}/2).`,
       tick:()=>{if(!liveRiders()&&unseated-tutUnseat0<2)spawnFoe();},done:()=>unseated-tutUnseat0>=2},
     {start:makeSnatcher,
       t:()=>P.mode==='grabbed'?'Press the keys shown to break free from its claws.':P.mode==='falling'?`Press Space to open your parachute, or R to have ${dn()} catch you.`:P.mode==='chute'?'Steer with WASD as you float down.':
@@ -428,13 +451,9 @@ function buildPatrol(cfg){
       // carried player
       if(captor){carryT-=dt;if(carryT<=0){const f=captor;captor=null;f.state='fly';f.grabCD=20;P.mode='falling';P.vy=0;P.dropH=P.y;P.openH=null;
         toast(`Dropped from ${Math.round(P.y)} m! Open your parachute (${isTouch?'Ride':'Space'}). Too late costs you.`,'bad');}}
-      if(qte){qte.t-=dt;$('#qteFill').style.width=(clamp(qte.t/qte.max,0,1)*100)+'%';if(qte.t<=0)pulledOff();}
+      if(qte){qte.t-=dt;$('#qteFill').style.width=(clamp(qte.t/qte.max,0,1)*100)+'%';if(qte.t<=0){if(qte.mode==='pull')pullDone(false);else pulledOff();}}
       // your grip on an enemy rider
-      if(struggle){const f=struggle.foe;struggle.t-=dt;
-        if(struggle.t<=0){struggle=null;
-          if(Math.random()<.35){f.state='fly';f.stun=2;f.grabCD=8;toast('The rider broke free of your grip.','bad');}
-          else{f.hasRider=false;f.m.remove(f.rider);f.rider.scale.setScalar(1);sc.add(f.rider);f.state='flee';f.t=0;unseated++;held={kind:'rider',m:f.rider,hp:60};
-            toast(`Rider pulled off their dragon (${unseated}/${TOTAL}). Press G to drop them.`,'good');checkSpawn();checkWin();}}}
+      // (your grip on an enemy rider is resolved by the key prompt: see startPull / pullDone)
       if(held&&R){const f=fwd();held.m.position.set(R.pos.x+f.x*.8,R.pos.y-2.6,R.pos.z+f.z*.8);if(held.m.position.y<0)held.m.position.y=0;}
       // enemy riders
       const tgt=playerPos();

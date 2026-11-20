@@ -23,11 +23,12 @@ function startFeed(el){
   setScene(buildFeedMission(cfg));P.x=0;P.z=34;P.yaw=0;P.pitch=0;P.hp=maxHp();save();
   if(lure)toast('Hunting lure used: more food spawns.');
 }
-function startPatrol(){if(S.carriedEgg||!S.dragons.some(d=>d.growth>=100))return;
-  const cfg={lvl:1+Math.floor((S.playerLvl-1)/2),seed:Math.floor(Math.random()*1e9)};
+function startPatrol(diff){if(S.carriedEgg||!S.dragons.some(d=>d.growth>=100))return;
+  diff=PATROL_DIFFS[diff]?diff:'medium';const PD=PATROL_DIFFS[diff];
+  const cfg={diff,high:PD.high,lvl:1+Math.floor((S.playerLvl-1)/2),seed:Math.floor(Math.random()*1e9)};
   closePanel(true);missionOver=false;
   setScene(buildPatrol(cfg));P.x=0;P.z=90;P.y=0;P.yaw=0;P.pitch=0;P.hp=maxHp();save();
-  toast('Sky Patrol: no time limit. Your dragon waits ahead of you. Press R to mount.');}
+  toast(`${PD.name} Sky Patrol: unseat ${PD.riders} riders, no time limit. Your dragon waits ahead of you. Press R to mount.`);}
 // --- ending missions
 function finishMission(r){
   missionOver=true;eggVM.visible=false;hideBoss();
@@ -39,10 +40,12 @@ function finishMission(r){
     else{title='Mission failed';S.lost++;let g=0,xp=15;if(r.bossKilled){g=Math.round(30*gm);xp=35;}S.gold+=g;
       lines.push(r.reason);lines.push(g?`+${g} gold for the kill · +${xp} XP`:`+${xp} XP`);grantXP(xp);}}
   else if(r.kind==='patrol'){eyebrow='Dragon mission · Sky Patrol';
-    if(r.success){title='Patrol complete';const g=Math.round((120+25*r.cfg.lvl)*gm),m=60,xp=120+15*r.cfg.lvl;S.gold+=g;S.material+=m;S.won++;
-      lines.push('All 4 enemy riders unseated, both crates delivered and the scout rescued.',`+${g} gold · +${m} material · +${xp} XP`);grantXP(xp);
-      for(const d of r.used){const dx=120+20*r.cfg.lvl;grantDragonXP(d,dx);lines.push(`${d.name} +${dx} flight XP (flight level ${flv(d)})`);}}
-    else{title='Mission failed';S.lost++;lines.push(r.reason,`Progress: riders ${r.unseated}/4 · crates ${r.delivered}/2 · scout ${r.scoutSaved?'rescued':'not rescued'}`,'+20 XP');grantXP(20);
+    const PD=PATROL_DIFFS[r.cfg.diff]||PATROL_DIFFS.medium,mul=PD.mul,total=r.total||PD.riders;// Medium (×1) pays what patrols always paid
+    eyebrow+=` · ${PD.name}`;
+    if(r.success){title='Patrol complete';const g=Math.round((120+25*r.cfg.lvl)*gm*mul),m=Math.round(60*mul),xp=Math.round((120+15*r.cfg.lvl)*mul);S.gold+=g;S.material+=m;S.won++;
+      lines.push(`All ${total} enemy riders unseated, both crates delivered and the scout rescued.`,`+${g} gold · +${m} material · +${xp} XP`);grantXP(xp);
+      for(const d of r.used){const dx=Math.round((120+20*r.cfg.lvl)*mul);grantDragonXP(d,dx);lines.push(`${d.name} +${dx} flight XP (flight level ${flv(d)})`);}}
+    else{title='Mission failed';S.lost++;lines.push(r.reason,`Progress: riders ${r.unseated}/${total} · crates ${r.delivered}/2 · scout ${r.scoutSaved?'rescued':'not rescued'}`,'+20 XP');grantXP(20);
       for(const d of r.used)grantDragonXP(d,25);if(r.used.length)lines.push('Each dragon you rode +25 flight XP');}}
   else if(r.kind==='relic'){eyebrow='Was I right?';
     if(r.success&&r.found&&!S.relic){title='The relic';S.relic=true;S.relicDragon=S.relicDragon||S.active;lines.push('<b style="color:#ecb64e">You found the relic.</b> If your faction holds the most relics when the year ends, it will carry one of your dragons into the next season as an egg. Choose which one in the kingdom panel (Tab).');}

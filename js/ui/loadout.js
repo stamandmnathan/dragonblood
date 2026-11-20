@@ -16,8 +16,10 @@ function briefing(){const k=LO.kind;
   if(k==='trial'){const T_=TRIALS[MP.trial];return{name:`Holy Tree Trial · ${T_.name} · ${ELEMENTS[MP.trialEl].name}`,goal:'Destroy the three corrupted shrines, then plant the holy seed at the sacred spring and stay beside it until the tree takes root. Hollow husks will try to stop you.',
     rules:['On foot · 15 minute limit','Falling respawns you at the last checkpoint','Running out of time fails the trial',T_.gold?`Costs ${T_.gold} gold, paid when you begin`:'Free'],
     reward:`${T_.bark[0]===T_.bark[1]?T_.bark[0]:T_.bark[0]+'–'+T_.bark[1]} Seedling ${BARK_TYPES[MP.trialEl].name} (${BARK_TYPES[MP.trialEl].fx(BARK_TYPES[MP.trialEl].vals[0])} each), gold and XP. Wins have a ${T_.D>2?3:1}% chance of a Legendary scroll.`};}
-  return{name:'Sky Patrol',goal:'Ride against rival riders: unseat 4 of them, deliver 2 supply crates to the war camp and carry a stranded scout home.',
-    rules:['Dragon mission · no time limit','Falling sends you back to the kingdom','One dragon flies as your mount; when it tires it must land and recover'],reward:'Gold, material, XP and flight XP for every dragon you ride. Wins have a 1% chance of a Legendary scroll.'};}
+  const PD=PATROL_DIFFS[MP.patrol]||PATROL_DIFFS.medium;
+  return{name:`Sky Patrol · ${PD.name}`,goal:`Ride against rival riders: unseat ${PD.riders} of them, deliver 2 supply crates to the war camp and carry a stranded scout home.`,
+    rules:['Dragon mission · no time limit',`Up to ${PD.together} enemy rider${PD.together>1?'s':''} in the air at once`,`Grabs: ${PD.freeKeys} keys in ${PD.freeTime}s to break free, ${PD.pullKeys} keys in ${PD.pullTime}s to rip a rider off`,'Falling sends you back to the kingdom','One dragon flies as your mount; when it tires it must land and recover'],
+    reward:`Gold, material, XP and flight XP for every dragon you ride (×${PD.mul}). Wins have a ${PD.high?3:1}% chance of a Legendary scroll.`};}
 const P_loadout={eyebrow:()=>'Before you ride out',title:()=>briefing().name,live:true,render(){
   const B=briefing(),riding=LO.kind==='patrol';let h='';
   if(riding)h+=`<div class="seg" style="margin:6px 0 4px">${['knight','dragon'].map(t=>`<button type="button" data-act="loTab" data-arg="${t}" aria-pressed="${LO.tab===t}">${t==='knight'?'Knight':'Dragon'}</button>`).join('')}</div>`;
