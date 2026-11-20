@@ -16,6 +16,7 @@ addEventListener('keydown',e=>{
   else if(/^Digit[1-4]$/.test(e.code))castDP(+e.code[5]-1);
   else if(e.code==='KeyZ')castScroll();
   else if(e.code==='Tab'){e.preventDefault();TUTF.tab=true;openPanel(P_kingdom);}
+  else if(e.code==='KeyI')openInventory();// (while chanting, I is a chant key and is handled above)
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
@@ -51,4 +52,5 @@ $('#tDive').addEventListener('pointerdown',e=>{e.preventDefault();touchHold.dive
 for(const ev of['pointerup','pointercancel','pointerleave'])$('#tDive').addEventListener(ev,()=>{touchHold.dive=false;});
 $('#qteKeys').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-k]');if(b&&cur&&cur.onKey){e.preventDefault();cur.onKey(b.dataset.k);}});
 $('#kBadge').addEventListener('click',()=>{if(started&&!modalOpen){TUTF.tab=true;openPanel(P_kingdom);}});
+$('#invBtn').addEventListener('click',()=>{if(started&&!(curPanel&&curPanel.noClose))openInventory();});
 $('#menuBtn').addEventListener('click',()=>{if(started&&!(curPanel&&curPanel.noClose)){resetArm=false;openPanel(P_menu);}});

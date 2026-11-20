@@ -158,6 +158,7 @@ const P_menu={eyebrow:()=>'DragonBlood',title:()=>'Menu',render(){
   h+=ctrl('H','Drink a salve (+45 health). Buy more at the Alchemist.');
   h+=ctrl('Q','Dragon breath (on missions that allow your dragon).');
   h+=ctrl('Tab','Kingdom panel: score, Intelligence, dragons, seasons.');
+  h+=ctrl('I','Inventory: what your knight and lead dragon have equipped, and everything you carry.');
   h+='</div>';
 
   h+='<p class="section-h">Dragon Power &amp; scrolls</p><div class="ctrls">';
