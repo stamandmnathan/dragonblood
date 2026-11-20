@@ -11,8 +11,8 @@
 // a new light would make three.js recompile every material and stutter.
 
 // --- particle cloud
-const FX_MAX=1400;
-const FX={scene:null,pts:null,smoke:null,parts:[],meshes:[],trails:[]};// pts glows (additive), smoke darkens (normal)
+const FX_MAX=2600;// enough for a Legendary spell zone on top of normal combat
+const FX={scene:null,pts:null,smoke:null,parts:[],meshes:[],trails:[],zones:[],shake:0,tint:null};// pts glows (additive), smoke darkens (normal); zones: spell-fx.js
 const FX_VERT=`attribute float size;attribute vec4 rgba;varying vec4 vC;
 void main(){vC=rgba;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=size*(420.0/max(.1,-mv.z));gl_Position=projectionMatrix*mv;}`;
 const FX_FRAG=`varying vec4 vC;
@@ -22,7 +22,7 @@ void main(){float d=length(gl_PointCoord-vec2(.5));if(d>.5)discard;gl_FragColor=
 function fxCloud(){
   if(!cur)return null;
   if(FX.scene!==cur.scene||!FX.pts||!FX.pts.parent){// new scene: start fresh
-    FX.scene=cur.scene;FX.parts.length=0;FX.trails.length=0;
+    FX.scene=cur.scene;FX.parts.length=0;FX.trails.length=0;FX.zones.length=0;FX.tint=null;
     for(let i=FX.meshes.length-1;i>=0;i--)if(!FX.meshes[i].cam)FX.meshes.splice(i,1);// scene meshes went with the old scene
     const cloud=(frag,blending,order)=>{const geo=new THREE.BufferGeometry();
       geo.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(FX_MAX*3),3));
@@ -34,12 +34,13 @@ function fxCloud(){
     FX.smoke=cloud(FX_SMOKE_FRAG,THREE.NormalBlending,4);FX.pts=cloud(FX_FRAG,THREE.AdditiveBlending,5);}
   return FX.pts;}
 
-// Spawn one particle. o: {x,y,z, vx,vy,vz, life, size, size1, color, color1, alpha, grav, drag, smoke}
+// Spawn one particle. o: {x,y,z, vx,vy,vz, life, size, size1, color, color1, alpha, grav, drag, smoke,
+//   swirl (rad/s around cx,cz), cx, cz, grow (radius change per second, e.g. .3 widens, -.5 sucks in)}
 const _c0=new THREE.Color(),_c1=new THREE.Color();
 function fxPart(o){if(!fxCloud())return;if(FX.parts.length>=FX_MAX)FX.parts.shift();
   _c0.set(o.color==null?0xffffff:o.color);_c1.set(o.color1==null?(o.color==null?0xffffff:o.color):o.color1);
   FX.parts.push({x:o.x,y:o.y,z:o.z,vx:o.vx||0,vy:o.vy||0,vz:o.vz||0,t:0,life:o.life||.6,s0:o.size||.5,s1:o.size1==null?(o.size||.5)*.2:o.size1,
-    r0:_c0.r,g0:_c0.g,b0:_c0.b,r1:_c1.r,g1:_c1.g,b1:_c1.b,a:o.alpha==null?1:o.alpha,grav:o.grav||0,drag:o.drag||0,sm:!!o.smoke});}
+    r0:_c0.r,g0:_c0.g,b0:_c0.b,r1:_c1.r,g1:_c1.g,b1:_c1.b,a:o.alpha==null?1:o.alpha,grav:o.grav||0,drag:o.drag||0,sm:!!o.smoke,sw:o.swirl||0,cx:o.cx||0,cz:o.cz||0,rg:o.grow||0});}
 const fxRand=(a,b)=>a+Math.random()*(b-a);
 // Random unit vector (optionally biased upward).
 function fxDir(up){const u=Math.random()*2-1+(up||0),a=Math.random()*Math.PI*2,s=Math.sqrt(Math.max(0,1-Math.min(1,u*u)));return new THREE.Vector3(Math.cos(a)*s,Math.min(1,u),Math.sin(a)*s).normalize();}
@@ -95,6 +96,7 @@ function fxUpdate(dt){if(!cur)return;
     if(e.spin)e.m.rotation.z+=e.spin*dt;
     if(k>=1){if(e.m.parent)e.m.parent.remove(e.m);e.m.geometry.dispose();e.m.material.dispose();FX.meshes.splice(i,1);}}
   if(!FX.pts||FX.scene!==cur.scene){FX.trails.length=0;return;}
+  if(typeof fxZonesUpdate==='function')fxZonesUpdate(dt);// legendary spell zones, shake, sky tint
   // trails: spawn puffs along the path travelled since last frame
   const wp=new THREE.Vector3();
   for(let i=FX.trails.length-1;i>=0;i--){const tr=FX.trails[i],o=tr.o;
@@ -112,6 +114,8 @@ function fxUpdate(dt){if(!cur)return;
   for(let i=FX.parts.length-1;i>=0;i--){const p=FX.parts[i];p.t+=dt;if(p.t>=p.life){FX.parts.splice(i,1);continue;}
     const k=p.t/p.life,dr=Math.max(0,1-p.drag*dt);p.vx*=dr;p.vy=p.vy*dr-p.grav*dt;p.vz*=dr;
     p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.y<.02){p.y=.02;p.vy*=-.3;}
+    if(p.sw){const dx=p.x-p.cx,dz=p.z-p.cz,a=p.sw*dt,c=Math.cos(a),s=Math.sin(a),g=Math.max(0,1+p.rg*dt);// orbit the swirl centre
+      p.x=p.cx+(dx*c-dz*s)*g;p.z=p.cz+(dx*s+dz*c)*g;}
     const B=bufs[p.sm?1:0],n=B.n++;
     B.pa[n*3]=p.x;B.pa[n*3+1]=p.y;B.pa[n*3+2]=p.z;
     const fade=p.a*(k<.1?k/.1:1-(k-.1)/.9);// quick fade-in, slow fade-out
