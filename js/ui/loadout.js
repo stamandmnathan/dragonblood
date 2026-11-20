@@ -18,7 +18,7 @@ function briefing(){const k=LO.kind;
     reward:`${T_.bark[0]===T_.bark[1]?T_.bark[0]:T_.bark[0]+'–'+T_.bark[1]} Seedling ${BARK_TYPES[MP.trialEl].name} (${BARK_TYPES[MP.trialEl].fx(BARK_TYPES[MP.trialEl].vals[0])} each), gold and XP. Wins have a ${T_.D>2?3:1}% chance of a Legendary scroll.`};}
   const PD=PATROL_DIFFS[MP.patrol]||PATROL_DIFFS.medium;
   return{name:`Sky Patrol · ${PD.name}`,goal:`Ride against rival riders: unseat ${PD.riders} of them, deliver 2 supply crates to the war camp and carry a stranded scout home.`,
-    rules:['Dragon mission · no time limit',`Up to ${PD.together} enemy rider${PD.together>1?'s':''} in the air at once`,`Grabs: ${PD.freeKeys} keys in ${PD.freeTime}s to break free, ${PD.pullKeys} keys in ${PD.pullTime}s to rip a rider off`,'Falling sends you back to the kingdom','One dragon flies as your mount; when it tires it must land and recover'],
+    rules:['Dragon mission · no time limit',`Up to ${PD.together} enemy rider${PD.together>1?'s':''} in the air at once`,`Grab prompts: 4 keys, ${PD.freeTime}s to break free, ${PD.pullTime}s to rip a rider off`,'Falling sends you back to the kingdom','One dragon flies as your mount; when it tires it must land and recover'],
     reward:`Gold, material, XP and flight XP for every dragon you ride (×${PD.mul}). Wins have a ${PD.high?3:1}% chance of a Legendary scroll.`};}
 const P_loadout={eyebrow:()=>'Before you ride out',title:()=>briefing().name,live:true,render(){
   const B=briefing(),riding=LO.kind==='patrol';let h='';

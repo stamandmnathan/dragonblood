@@ -8,11 +8,12 @@ const STAM={breath:18,bite:8,grab:10,dive:12,diveSec:10,takeoff:10,fly:1.2,landR
 // Sky Patrol difficulty. Medium is the original balance.
 //   riders: riders to unseat · together: riders in the air at once · D: enemy health/damage
 //   grab: enemy grab cooldown multiplier · free/pull: keys and seconds to break free / to rip a rider off
+//   (grab prompts are always 4 keys; difficulty changes only the time)
 //   mul: reward multiplier · high: 3% Legendary scroll chance on a win instead of 1%
 const PATROL_DIFFS={
-  easy:  {name:'Easy',  riders:3,together:1,D:.75,grab:1.5,freeKeys:3,freeTime:4.2,pullKeys:3,pullTime:3.2,mul:.6,high:false},
+  easy:  {name:'Easy',  riders:3,together:1,D:.75,grab:1.5,freeKeys:4,freeTime:4.2,pullKeys:4,pullTime:3.2,mul:.6,high:false},
   medium:{name:'Medium',riders:4,together:2,D:1,  grab:1,  freeKeys:4,freeTime:3.4,pullKeys:4,pullTime:2.6,mul:1, high:false},
-  hard:  {name:'Hard',  riders:6,together:3,D:1.5,grab:.7, freeKeys:5,freeTime:2.8,pullKeys:5,pullTime:2.2,mul:1.6,high:true},
+  hard:  {name:'Hard',  riders:6,together:3,D:1.5,grab:.7, freeKeys:4,freeTime:2.8,pullKeys:4,pullTime:2.2,mul:1.6,high:true},
 };
 // Both grab prompts use the movement keys. Arrow keys count as their WASD match.
 const QTE_KEYS=['KeyW','KeyA','KeyS','KeyD'];
