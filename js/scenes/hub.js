@@ -54,16 +54,17 @@ function buildHub(){
     const lab=makeLabel('War Table','Region control');lab.position.set(x,3.3,z);sc.add(lab);
     colliders.push({x,z,r:1.9});interact.push({x,z,r:3.8,label:()=>'Study the War Table',action:()=>openPanel(P_war)});}
   // holy tree: combine holy bark and set it into weapon sockets
-  {const x=5.5,z=10;const g=new THREE.Group();g.position.set(x,0,z);g.add(mesh(new THREE.CylinderGeometry(.3,.5,3,8),M(0xd8c79a,{emissive:0x5a4a20,emissiveIntensity:.35}),0,1.5,0));
-    g.add(mesh(new THREE.IcosahedronGeometry(1.7,1),new THREE.MeshStandardMaterial({color:0xf2e6a8,emissive:0xd8b850,emissiveIntensity:.55,flatShading:true}),0,3.8,0));sc.add(g);
-    const lab=makeLabel('Holy Tree','Holy bark · weapon sockets',.6);lab.position.set(x,6.2,z);sc.add(lab);
-    colliders.push({x,z,r:1});interact.push({x,z,r:3.2,label:()=>'Visit the Holy Tree',action:()=>openPanel(P_tree)});}
+  {const x=5.5,z=10;const g=makeHolyTree({planter:true});g.scale.setScalar(.85);g.position.set(x,0,z);sc.add(g);anim.holy=g;// see holy-tree.js
+    const glow=new THREE.PointLight(0xffd890,.9,10);glow.position.set(x,4.5,z);sc.add(glow);
+    const lab=makeLabel('Holy Tree','Holy bark · weapon sockets',.6);lab.position.set(x,7.6,z);sc.add(lab);
+    colliders.push({x,z,r:2.1});interact.push({x,z,r:3.8,label:()=>'Visit the Holy Tree',action:()=>openPanel(P_tree)});}
   const center=new THREE.PointLight(0xffb070,.9,40);center.position.set(0,8,0);sc.add(center);
   return{kind:'hub',scene:sc,colliders,interact,radius:33,
     update(dt,t){if(anim.gate){anim.gate.userData.disc.material.opacity=.45+Math.sin(t*2)*.12;}
       if(anim.egg){const s=1+Math.sin(t*3)*.04;anim.egg.scale.set(s,1.35*s,s);}
       if(anim.dragon){flap(anim.dragon,t,1.4,.25);anim.dragon.children[0].scale.y=.8+Math.sin(t*1.6)*.02;}
       if(anim.crown)anim.crown.rotation.z+=dt*.5;
+      if(anim.holy)anim.holy.userData.tick(dt,t);
       animateSettlement(anim,dt,t);},
     onAttack(){}};
 }
